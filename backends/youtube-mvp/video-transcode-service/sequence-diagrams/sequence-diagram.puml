@@ -1,0 +1,57 @@
+@startuml
+title Video Transcode Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+participant "Azure Service Bus" as Bus
+participant "VideoUploadedConsumer" as Consumer
+participant "TranscodeOrchestrator" as Orc
+participant "AMSAdapter" as AMS
+participant "PackagerAdapter" as PKG
+participant "ThumbnailService" as Thumbs
+participant "OutboxEventPublisher" as Outbox
+
+== On VideoUploaded -> Transcode ==
+Bus -> Consumer: VideoUploaded{videoId, inputBlob}
+Consumer -> Orc: startTranscode(videoId, inputBlob)
+Orc -> AMS: submitEncodingJob(inputBlob)
+AMS --> Orc: JobId
+
+loop until FINISHED or FAILED
+Orc -> AMS: getJobStatus(JobId)
+AMS --> Orc: JobStatus
+end
+
+alt job finished
+Orc -> AMS: getAssetId(JobId)
+AMS --> Orc: assetId
+Orc -> PKG: packageHlsDash(assetId)
+PKG --> Orc: PackagingResult{hlsUrl, dashUrl}
+Orc -> Thumbs: generateThumbnails(assetId)
+Thumbs --> Orc: [Thumbnail]
+Orc -> Outbox: publish(TranscodeCompleted{videoId, assetId, hls, dash})
+Outbox --> Orc: ack
+Orc -> Outbox: publish(ThumbnailGenerated{videoId, [thumbs]})
+Outbox --> Orc: ack
+else job failed
+Orc -> Outbox: publish(TranscodeFailed{videoId})
+Outbox --> Orc: ack
+end
+
+@enduml

@@ -1,0 +1,51 @@
+@startuml
+title Search Indexer Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "SearchIndexerService" {
+class IndexConsumer {
++onVideoEvent(event)
++onCaptionAdded(event)
++onCommentPosted(event)
+}
+
+class IndexerService {
++transformAndUpsert(videoId, metadata, captions, tags)
++remove(videoId)
+}
+
+interface CognitiveSearchAdapter {
++upsertDoc(doc)
++deleteDoc(videoId)
+}
+}
+
+package "Azure Integrations" {
+class AzureCognitiveSearch
+class AzureServiceBusTopic
+}
+
+IndexConsumer --> IndexerService : update index
+IndexerService --> CognitiveSearchAdapter
+CognitiveSearchAdapter ..> AzureCognitiveSearch
+
+@enduml

@@ -1,0 +1,52 @@
+@startuml
+title Shorts Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Creator
+participant "ShortsController" as C
+participant "ShortsService" as S
+participant "BlobStorageClient" as Blob
+participant "TranscodeAdapter" as TX
+participant "AudioLibraryAdapter" as Audio
+participant "ShortMetadataRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+
+== Upload Short ==
+Creator -> C: POST /shorts/uploads/sessions {size, checksum}
+C -> S: createUploadSession(uploaderId, size, checksum)
+S -> Blob: reserveShortPath(shortId)
+Blob --> S: shortBlobPath
+S -> Repo: save(meta)
+Repo --> S: ok
+S --> Creator: 201 {sessionId, uploadUrl}
+
+== Remix Short ==
+newpage Remix Short
+Creator -> C: POST /shorts/{id}/remix {sourceVideoId, audioTrackId}
+C -> S: remix(shortId, sourceVideoId, audioTrackId)
+S -> Audio: getTrack(audioTrackId)
+Audio --> S: AudioTrack
+S -> TX: encodeShort(inputBlob + audioTrack)
+TX --> S: Renditions
+S -> Repo: updateRenditions(shortId, Renditions)
+S -> Outbox: publish(VideoPublished{shortId})
+S --> Creator: 200
+
+@enduml

@@ -1,0 +1,113 @@
+@startuml
+title Recommendations Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "RecommendationsService" {
+    class RecommendationsController {
+        +GET /recommendations?userId=&context=
+        +GET /recommendations/trending
+        +GET /recommendations/similar?videoId=
+    }
+
+    class RecommendationsService {
+        +getPersonalized(userId, context): List<VideoDTO>
+        +getTrending(region, category): List<VideoDTO>
+        +getSimilar(videoId, limit): List<VideoDTO>
+    }
+
+    class RecommendationEngine {
+        +computePersonalized(userId, context): List<VideoScore>
+        +computeTrending(region, category): List<VideoScore>
+        +computeSimilar(videoId, limit): List<VideoScore>
+    }
+
+    class UserProfileRepository {
+        +getUserInterests(userId): UserInterests
+        +getWatchHistory(userId, limit): List<VideoId>
+    }
+
+    class VideoMetadataRepository {
+        +getVideoFeatures(videoId): VideoFeatures
+        +getSimilarVideos(videoId, limit): List<VideoId>
+    }
+
+    class TrendingRepository {
+        +getTrendingVideos(region, category, limit): List<VideoScore>
+        +updateTrendingScores(): void
+    }
+
+    class VideoScore {
+        -videoId: UUID
+        -score: double
+        -reason: String
+    }
+
+    class UserInterests {
+        -categories: List<String>
+        -topics: List<String>
+        -preferences: Map<String, Double>
+    }
+
+    class VideoFeatures {
+        -title: String
+        -description: String
+        -tags: List<String>
+        -category: String
+        -duration: int
+        -engagement: EngagementMetrics
+    }
+
+    class EngagementMetrics {
+        -views: long
+        -likes: long
+        -comments: long
+        -shares: long
+        -watchTime: double
+    }
+
+    class OutboxEventPublisher {
+        +publish(event: DomainEvent)
+    }
+
+    class DomainEvent {}
+}
+
+package "Azure Integrations" {
+    class CosmosDB
+    class Redis
+    class AzureServiceBusTopic
+    class AzureML
+}
+
+RecommendationsController --> RecommendationsService
+RecommendationsService --> RecommendationEngine
+RecommendationsService --> UserProfileRepository
+RecommendationsService --> VideoMetadataRepository
+RecommendationsService --> TrendingRepository
+UserProfileRepository ..> CosmosDB
+VideoMetadataRepository ..> CosmosDB
+TrendingRepository ..> Redis
+RecommendationEngine ..> AzureML : ML models
+RecommendationsService --> OutboxEventPublisher : "RecommendationsGenerated"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

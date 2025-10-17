@@ -1,0 +1,84 @@
+@startuml
+title Content ID Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "ContentIdService" {
+class FingerprintController {
++POST /videos/{id}/fingerprint
++GET /videos/{id}/claims
++POST /claims/{id}/resolve
+}
+
+class ContentIdService {
++generateFingerprint(videoId, assetUri): FingerprintId
++match(videoId, fingerprintId): List
++raiseClaim(videoId, ownerId, matches): ClaimId
++resolveClaim(claimId, action): void
+}
+
+class FingerprintRepository {
++store(videoId, fingerprintId)
+}
+
+class ClaimRepository {
++save(claim: Claim)
++findByVideo(videoId): List
++updateStatus(claimId, status)
+}
+
+class Claim {
+-id: UUID
+-videoId: UUID
+-ownerId: UUID
+-matches: List
+-status: String
+-createdAt: Instant
+}
+
+interface FingerprintStore {
++persistFingerprint(videoId, fingerprintId)
++search(fingerprintId): List
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class DataLake
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+FingerprintController --> ContentIdService
+ContentIdService --> FingerprintStore
+ContentIdService --> FingerprintRepository
+ContentIdService --> ClaimRepository
+FingerprintStore ..> DataLake
+FingerprintRepository ..> CosmosDB
+ClaimRepository ..> CosmosDB
+ContentIdService --> OutboxEventPublisher : "ContentClaimRaised / ContentClaimResolved"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

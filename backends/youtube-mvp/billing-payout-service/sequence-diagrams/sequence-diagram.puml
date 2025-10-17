@@ -1,0 +1,57 @@
+@startuml
+title Billing & Payout Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Admin
+participant "BillingController" as C
+participant "BillingService" as S
+participant "RevenueAggregator" as Agg
+participant "PayoutRepository" as Repo
+participant "TaxInfoRepository" as Tax
+participant "PaymentAdapter" as Pay
+participant "AzureSQL" as SQL
+participant "DataLake" as DL
+participant "Synapse" as SYN
+
+== Run Aggregation ==
+Admin -> C: POST /billing/run-aggregation {period}
+C -> S: runAggregation(period)
+S -> Agg: aggregate(DL, SYN, period)
+Agg -> DL: read raw facts
+Agg -> SYN: compute revenue by channel
+Agg --> S: ok
+S -> Repo: save(payouts per channel)
+Repo -> SQL: upsert
+S --> Admin: 202
+
+== Process Payout ==
+newpage Process Payout
+Admin -> C: POST /billing/payouts/process {payoutId}
+C -> S: processPayout(payoutId)
+S -> Repo: findByChannel(channelId) / get payout
+Repo --> S: Payout
+S -> Tax: get(channelId)
+Tax --> S: TaxInfo
+S -> Pay: transfer(channelId, net)
+Pay --> S: PaymentResult
+S -> Repo: updateStatus(payoutId, PAID)
+S --> Admin: 200
+
+@enduml

@@ -1,17 +1,14 @@
 package com.youtube.identityauthservice.infrastructure.messaging;
 
-import com.azure.messaging.servicebus.ServiceBusMessage;
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.messaging.servicebus.*;
 import com.youtube.identityauthservice.domain.model.OutboxEvent;
-import com.youtube.identityauthservice.infrastructure.persistence.OutboxRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.youtube.identityauthservice.domain.repository.OutboxEventRepository;
+import com.youtube.identityauthservice.infrastructure.config.ServiceBusProperties;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
-
 public class ServiceBusOutboxDispatcher {
 
     private final OutboxEventRepository repo;
@@ -20,6 +17,7 @@ public class ServiceBusOutboxDispatcher {
     public ServiceBusOutboxDispatcher(OutboxEventRepository repo, ServiceBusProperties props) {
         this.repo = repo;
 
+
         ServiceBusClientBuilder builder = new ServiceBusClientBuilder();
         if (props.getConnectionString() != null && !props.getConnectionString().isBlank()) {
             builder = builder.connectionString(props.getConnectionString());
@@ -27,11 +25,9 @@ public class ServiceBusOutboxDispatcher {
             builder = builder.credential(props.getFullyQualifiedNamespace(), new DefaultAzureCredentialBuilder().build());
         }
 
-        if (props.isUseTopic()) {
-            this.sender = builder.sender().topicName(props.getTopicName()).buildClient();
-        } else {
-            this.sender = builder.sender().queueName(props.getQueueName()).buildClient();
-        }
+        this.sender = props.isUseTopic()
+                ? builder.sender().topicName(props.getTopicName()).buildClient()
+                : builder.sender().queueName(props.getQueueName()).buildClient();
     }
 
     @Scheduled(fixedDelayString = "${app.outbox.dispatch-interval-ms:2000}")
@@ -40,20 +36,34 @@ public class ServiceBusOutboxDispatcher {
         for (OutboxEvent evt : batch) {
             try {
                 ServiceBusMessage msg = new ServiceBusMessage(evt.getPayload());
-                msg.setMessageId(evt.getId()); // enable duplicate detection on entity
+// Use outbox id for duplicate detection
+                msg.setMessageId(evt.getId());
                 msg.setSubject(evt.getType());
                 msg.setContentType("application/json");
-                msg.getApplicationProperties().put("aggregateType", evt.getAggregateType());
-                msg.getApplicationProperties().put("aggregateId", evt.getAggregateId());
-                msg.getApplicationProperties().put("occurredAt", evt.getOccurredAt().toString());
+
+
+                // Enrich with useful metadata
+                if (evt.getAggregateType() != null) msg.getApplicationProperties().put("aggregateType", evt.getAggregateType());
+                if (evt.getAggregateId() != null) msg.getApplicationProperties().put("aggregateId", evt.getAggregateId());
+                if (evt.getOccurredAt() != null) msg.getApplicationProperties().put("occurredAt", evt.getOccurredAt().toString());
+                if (evt.getCausationId() != null) msg.getApplicationProperties().put("causationId", evt.getCausationId());
+                if (evt.getTraceparent() != null) msg.getApplicationProperties().put("traceparent", evt.getTraceparent());
+
                 if (evt.getCorrelationId() != null) msg.setCorrelationId(evt.getCorrelationId());
                 if (evt.getPartitionKey() != null) msg.setPartitionKey(evt.getPartitionKey());
+
                 sender.sendMessage(msg);
 
-                repo.markDispatched(evt.getId());
+                // Persist dispatch info (we set messageId above; you can also keep SB sequence number if you read it elsewhere)
+                repo.markDispatched(evt.getId(), msg.getMessageId(), Instant.now());
             } catch (Exception e) {
-                repo.incrementAttempt(evt.getId(), e.getMessage());
+                repo.markFailed(evt.getId(), truncate(e.getMessage(), 3900));
             }
         }
+    }
+
+    private static String truncate(String s, int max) {
+        if (s == null) return null;
+        return s.length() <= max ? s : s.substring(0, max);
     }
 }

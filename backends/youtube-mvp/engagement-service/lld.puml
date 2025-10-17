@@ -1,0 +1,93 @@
+@startuml
+title Engagement Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "EngagementService" {
+class EngagementController {
++POST /videos/{id}/like
++DELETE /videos/{id}/like
++POST /videos/{id}/dislike
++DELETE /videos/{id}/dislike
++POST /videos/{id}/share
++GET /videos/{id}/counters
+}
+
+class EngagementService {
++like(videoId, userId)
++unlike(videoId, userId)
++dislike(videoId, userId)
++undislike(videoId, userId)
++share(videoId, userId, target)
++getCounters(videoId): CountersDTO
+}
+
+class RawEventProducer {
++send(event: EngagementEvent)
+}
+
+class AggregationConsumer {
++onLikeAdded(event)
++onDislikeAdded(event)
++onViewCompleted(event)
++onShare(event)
+}
+
+class EngagementRepository {
++incrementLikes(videoId)
++decrementLikes(videoId)
++incrementDislikes(videoId)
++decrementDislikes(videoId)
++incrementViews(videoId, value)
++incrementShares(videoId)
++get(videoId): Counters
+}
+
+class Counters {
+-likes: long
+-dislikes: long
+-views: long
+-shares: long
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class AzureEventHubs
+class CosmosDB
+class Redis
+class AzureServiceBusTopic
+}
+
+EngagementController --> EngagementService
+EngagementService --> RawEventProducer
+AggregationConsumer ..> AzureEventHubs
+AggregationConsumer --> EngagementRepository
+AggregationConsumer --> OutboxEventPublisher : "LikeAdded / DislikeAdded / ViewIncremented / ShareRecorded"
+EngagementRepository ..> CosmosDB
+EngagementService ..> Redis : hot counters cache
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

@@ -1,0 +1,68 @@
+@startuml
+title Content ID Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+participant "FingerprintController" as C
+participant "ContentIdService" as S
+participant "FingerprintStore" as FS
+participant "FingerprintRepository" as FRepo
+participant "ClaimRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+participant "DataLake" as DL
+participant "CosmosDB" as Cosmos
+
+== Generate Fingerprint ==
+actor System
+System -> C: POST /videos/{id}/fingerprint
+C -> S: generateFingerprint(videoId, assetUri)
+S -> FS: persistFingerprint(videoId, fingerprintId)
+FS -> DL: write fingerprint
+DL --> FS: ok
+FS --> S: ok
+S -> FRepo: store(videoId, fingerprintId)
+FRepo -> Cosmos: upsert
+S --> System: 202 FingerprintId
+
+== Match and Raise Claim ==
+newpage Match and Raise Claim
+System -> S: match(videoId, fingerprintId)
+S -> FS: search(fingerprintId)
+FS -> DL: query
+DL --> FS: [MatchResult]
+FS --> S: [MatchResult]
+alt matches found
+S -> Repo: save(Claim{videoId, ownerId, matches, status=OPEN})
+Repo -> Cosmos: upsert
+S -> Outbox: publish(ContentClaimRaised{videoId, claimId})
+else no matches
+end
+
+== Resolve Claim ==
+newpage Resolve Claim
+actor Moderator
+Moderator -> C: POST /claims/{id}/resolve {action}
+C -> S: resolveClaim(claimId, action)
+S -> Repo: updateStatus(claimId, RESOLVED)
+Repo -> Cosmos: patch
+S -> Outbox: publish(ContentClaimResolved{claimId, action})
+Outbox --> S: ack
+S --> Moderator: 204
+
+@enduml

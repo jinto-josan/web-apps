@@ -1,0 +1,56 @@
+@startuml
+title Ads Tracking Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "AdsTrackingService" {
+class TrackingController {
++POST /ads/track/impression
++POST /ads/track/click
++GET /ads/track/health
+}
+
+class TrackingService {
++recordImpression(adId, userId, context): void
++recordClick(adId, userId, context): void
+}
+
+class EventHubProducer {
++send(event): void
+}
+
+class VastComplianceValidator {
++validate(payload): boolean
+}
+}
+
+package "Azure Integrations" {
+class AzureEventHubs
+class DataLake
+class Synapse
+}
+
+TrackingController --> TrackingService
+TrackingService --> VastComplianceValidator
+TrackingService --> EventHubProducer
+EventHubProducer ..> AzureEventHubs
+
+@enduml

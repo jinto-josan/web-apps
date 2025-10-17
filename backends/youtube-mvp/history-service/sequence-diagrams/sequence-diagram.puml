@@ -1,0 +1,53 @@
+@startuml
+title History Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Client
+participant "HistoryController" as C
+participant "HistoryService" as S
+participant "HistoryRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+
+== Record Watch ==
+Client -> C: POST /users/{id}/history {videoId, seconds}
+C -> S: recordWatch(userId, videoId, seconds)
+S -> Repo: save(WatchHistoryEvent)
+Repo --> S: ok
+S -> Outbox: publish(WatchHistoryUpdated{userId, videoId})
+Outbox --> S: ack
+S --> Client: 202
+
+== Update Resume Point ==
+newpage Update Resume Point
+Client -> C: POST /users/{id}/resume {videoId, seconds}
+C -> S: updateResumePoint(userId, videoId, seconds)
+S -> Repo: updateResumePoint(userId, videoId, seconds)
+Repo --> S: ok
+S --> Client: 204
+
+== Get History ==
+newpage Get History
+Client -> C: GET /users/{id}/history?page=1
+C -> S: getHistory(userId, page)
+S -> Repo: findByUser(userId, page)
+Repo --> S: Page
+S --> Client: 200 Page
+
+@enduml

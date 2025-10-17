@@ -1,0 +1,50 @@
+@startuml
+title Ads Tracking Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Player
+participant "TrackingController" as C
+participant "TrackingService" as S
+participant "VastComplianceValidator" as VAST
+participant "EventHubProducer" as EH
+participant "AzureEventHubs" as Hubs
+
+== Record Impression ==
+Player -> C: POST /ads/track/impression {adId, context}
+C -> S: recordImpression(adId, userId, context)
+S -> VAST: validate(payload)
+alt valid
+S -> EH: send(AdImpression{adId, userId, ts})
+EH -> Hubs: enqueue
+S --> Player: 202
+else invalid
+S --> Player: 400
+end
+
+== Record Click ==
+newpage Record Click
+Player -> C: POST /ads/track/click {adId, context}
+C -> S: recordClick(adId, userId, context)
+S -> VAST: validate(payload)
+S -> EH: send(AdClick{adId, userId, ts})
+EH -> Hubs: enqueue
+S --> Player: 202
+
+@enduml

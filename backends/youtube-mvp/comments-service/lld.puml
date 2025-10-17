@@ -1,0 +1,78 @@
+@startuml
+title Comments Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "CommentsService" {
+class CommentController {
++POST /videos/{id}/comments
++GET /videos/{id}/comments
++DELETE /comments/{id}
++POST /comments/{id}/reactions
++DELETE /comments/{id}/reactions
+}
+
+class CommentService {
++post(videoId, authorId, parentId, text): CommentDTO
++list(videoId, page): Page
++delete(commentId, actorId): void
++react(commentId, userId, type): void
++unreact(commentId, userId): void
+}
+
+class CommentRepository {
++save(comment: Comment)
++findByVideo(videoId, page): Page
++delete(commentId)
++addReaction(commentId, userId, type)
++removeReaction(commentId, userId)
+}
+
+class Comment {
+-id: UUID
+-videoId: UUID
+-authorId: UUID
+-parentId: UUID
+-text: String
+-reactions: Map<String, Set>
+-createdAt: Instant
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class Redis
+class AzureServiceBusTopic
+}
+
+CommentController --> CommentService
+CommentService --> CommentRepository
+CommentService --> OutboxEventPublisher : "CommentPosted / CommentDeleted"
+CommentRepository ..> CosmosDB
+CommentService ..> Redis : cache hot threads
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

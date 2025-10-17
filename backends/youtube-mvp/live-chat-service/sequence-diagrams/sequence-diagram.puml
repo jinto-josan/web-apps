@@ -1,0 +1,58 @@
+@startuml
+title Live Chat Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Viewer
+participant "ChatController" as C
+participant "ChatService" as S
+participant "ModerationAdapter" as Mod
+participant "MessageRepository" as Repo
+participant "PubSubAdapter" as PubSub
+participant "OutboxEventPublisher" as Outbox
+
+== Send Message ==
+Viewer -> C: POST /live/{streamId}/chat/messages {text}
+C -> S: sendMessage(streamId, userId, text)
+S -> Mod: check(text)
+alt clean
+S -> Repo: save(ChatMessage{status=VISIBLE})
+Repo --> S: msg
+S -> PubSub: broadcast(streamId, msg)
+PubSub --> S: ok
+S -> Outbox: publish(ChatMessageSent{streamId, msgId})
+S --> Viewer: 201 MessageDTO
+else flagged
+S -> Repo: save(ChatMessage{status=HIDDEN})
+S -> Outbox: publish(CommentModerated{messageId, reason})
+S --> Viewer: 202 Accepted (under review)
+end
+
+== Moderate Message ==
+newpage Moderate Message
+actor Moderator
+Moderator -> C: POST /live/{streamId}/chat/moderate {messageId, action=REMOVE}
+C -> S: moderate(streamId, messageId, action)
+S -> Repo: updateStatus(messageId, REMOVED)
+Repo --> S: ok
+S -> PubSub: broadcast(streamId, moderation notice)
+S -> Outbox: publish(CommentModerated{messageId})
+S --> Moderator: 204
+
+@enduml

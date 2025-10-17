@@ -1,0 +1,116 @@
+@startuml
+title Video Upload Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "VideoUploadService" {
+class UploadController {
++POST /videos/uploads/sessions
++POST /videos/uploads/{sessionId}/chunks
++POST /videos/uploads/{sessionId}/complete
++POST /videos/uploads/{sessionId}/abort
++GET /videos/uploads/{sessionId}
+}
+
+class UploadService {
++createResumableSession(videoId, uploaderId, size, checksum): UploadSessionDTO
++acceptChunk(sessionId, offset, bytes): ChunkAck
++complete(sessionId): CompletionResult
++abort(sessionId): void
++getSession(sessionId): UploadSessionDTO
+}
+
+class UploadSessionRepository {
++save(session: UploadSession)
++findById(id): Optional
++updateState(id, state: UploadState)
++updateProgress(id, receivedBytes)
++markCompleted(id, blobPath)
+}
+
+class UploadSession {
+-id: UUID
+-videoId: UUID
+-uploaderId: UUID
+-status: UploadStatus
+-state: UploadState
+-expectedSize: long
+-checksum: String
+-blobPath: String
+-receivedBytes: long
+-createdAt: Instant
+}
+
+enum UploadStatus {
+INITIATED
+UPLOADING
+COMPLETED
+ABORTED
+FAILED
+}
+class UploadState {
+-partETags: List
+}
+
+interface BlobStorageClient {
++reserveObjectPath(videoId): String
++composeParts(blobPath, partETags): void
++verifyChecksum(blobPath, checksum): boolean
+}
+
+interface RedisUploadStateStore {
++set(sessionId, state: UploadState)
++get(sessionId): Optional
++delete(sessionId)
+}
+
+class AzureSqlUploadStore {
++persistSession(session: UploadSession)
++updateProgress(sessionId, receivedBytes)
++updateStatus(sessionId, status)
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class BlobStorage
+class AzureSQL
+class Redis
+class AzureServiceBusTopic
+}
+
+UploadController --> UploadService
+UploadService --> UploadSessionRepository
+UploadService --> BlobStorageClient
+UploadService --> RedisUploadStateStore
+UploadService --> AzureSqlUploadStore
+UploadSessionRepository ..> AzureSQL
+BlobStorageClient ..> BlobStorage
+RedisUploadStateStore ..> Redis
+UploadService --> OutboxEventPublisher : "VideoUploaded"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

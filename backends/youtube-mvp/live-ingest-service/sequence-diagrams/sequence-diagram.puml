@@ -1,0 +1,55 @@
+@startuml
+title Live Ingest Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Creator
+participant "LiveController" as C
+participant "LiveIngestService" as S
+participant "StreamKeyRepository" as Keys
+participant "RTMPIngestAdapter" as RTMP
+participant "PackagerAdapter" as PKG
+participant "IngestStateStore" as Store
+participant "OutboxEventPublisher" as Outbox
+
+== Start Live ==
+Creator -> C: POST /live/{channelId}/start
+C -> S: start(channelId)
+S -> Keys: getOrCreate(channelId)
+Keys --> S: StreamKey
+S -> RTMP: allocatePipeline(StreamKey)
+RTMP --> S: PipelineId
+S -> PKG: packageLive(PipelineId)
+PKG --> S: ManifestUris{hls,dash}
+S -> Store: set(streamId, RUNNING)
+S -> Outbox: publish(LiveStreamStarted{channelId, streamId, manifests})
+Outbox --> S: ack
+S --> Creator: 201 StreamInfo
+
+== Stop Live ==
+newpage Stop Live
+Creator -> C: POST /live/{streamId}/stop
+C -> S: stop(streamId)
+S -> RTMP: releasePipeline(PipelineId)
+S -> Store: set(streamId, STOPPED)
+S -> Outbox: publish(LiveStreamEnded{streamId})
+Outbox --> S: ack
+S --> Creator: 204
+
+@enduml

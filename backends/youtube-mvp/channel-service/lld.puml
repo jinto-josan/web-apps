@@ -1,4 +1,6 @@
-@startuml channel-service-lld
+@startuml
+title Channel Service - LLD
+
 skinparam shadowing false
 skinparam packageStyle rectangle
 skinparam classAttributeIconSize 0
@@ -6,142 +8,88 @@ skinparam fontName "Helvetica"
 skinparam titleFontName "Helvetica"
 skinparam legendFontName "Helvetica"
 skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
 
-package "channel-service" {
-class ChannelId
-class Handle {
-+value: String
-+lower(): String
-}
-class Branding {
-+avatarUri: String
-+bannerUri: String
-+accentColor: String
-}
-class Policy {
-+ageGate: boolean
-+regionBlocks: List
-}
-class Channel {
-+id: ChannelId
-+ownerUserId: UserId
-+handle: Handle
-+title: String
-+description: String
-+language: String
-+country: String
-+branding: Branding
-+policy: Policy
-+version: int
-+rename(newHandle: Handle): void
-+updateBranding(b: Branding): void
-}
-class ChannelMember {
-+channelId: ChannelId
-+userId: UserId
-+role: Role
-+addedBy: UserId
-+addedAt: Instant
-}
 
-interface ChannelRepository {
-+findById(id: ChannelId): Optional
-+findByHandle(handleLower: String): Optional
-+save(channel: Channel, ifMatchEtag: String): Channel
-}
-interface HandleRegistry {
-+reserve(handleLower: String, userId: UserId, ttl: Duration): boolean
-+commit(handleLower: String, channelId: ChannelId): boolean
-+lookupChannelId(handleLower: String): Optional
-+release(handleLower: String): boolean
-}
-interface ChannelMemberRepository {
-+add(channelId: ChannelId, userId: UserId, role: Role): void
-+remove(channelId: ChannelId, userId: UserId): void
-+roleOf(channelId: ChannelId, userId: UserId): Optional
-+list(channelId: ChannelId, limit: int, continuation: String): List
-}
-class AccessControlService {
-+hasPermission(userId: UserId, channel: Channel, action: String): boolean
-}
-
-class ChannelCreated
-class ChannelHandleChanged
-class ChannelUpdated
-class ChannelMemberAdded
-class ChannelMemberRemoved
-
-class CreateChannelCommand {
-+title: String
-+handle: String
-+description: String
-+branding: Branding
-}
-class BrandingUpdate {
-+avatarUri: String
-+bannerUri: String
-+accentColor: String
-}
-class ChannelView {
-+id: String
-+handle: String
-+title: String
-+description: String
-+branding: Branding
-}
-
-class CreateChannelUseCase {
-+execute(cmd: CreateChannelCommand, owner: UserId): ChannelView
-}
-class ChangeHandleUseCase {
-+execute(id: ChannelId, newHandle: Handle, actor: UserId): ChannelView
-}
-class UpdateBrandingUseCase {
-+execute(id: ChannelId, update: BrandingUpdate, actor: UserId): ChannelView
-}
-class AddMemberUseCase {
-+execute(id: ChannelId, userId: UserId, role: Role, actor: UserId): void
-}
-class RemoveMemberUseCase {
-+execute(id: ChannelId, userId: UserId, actor: UserId): void
-}
-
+package "ChannelService" {
 class ChannelController {
-+create(cmd: CreateChannelCommand): ChannelView
-+getById(id: String): ChannelView
-+getByHandle(handle: String): ChannelView
-+updateBranding(id: String, update: BrandingUpdate): ChannelView
-+changeHandle(id: String, newHandle: String): ChannelView
-+addMember(id: String, userId: String, role: String): void
-+removeMember(id: String, userId: String): void
++POST /channels
++GET /channels/{id}
++PATCH /channels/{id}/branding
++PATCH /channels/{id}/policies
++POST /channels/{id}/roles
++DELETE /channels/{id}/roles/{userId}
 }
 
-' Associations
-Channel *-- Handle
-Channel *-- Branding
-Channel -- Policy
-Channel "1" <-- "0.." ChannelMember : members
-ChannelController ..> CreateChannelUseCase
-ChannelController ..> ChangeHandleUseCase
-ChannelController ..> UpdateBrandingUseCase
-ChannelController ..> AddMemberUseCase
-ChannelController ..> RemoveMemberUseCase
-CreateChannelUseCase ..> HandleRegistry
-CreateChannelUseCase ..> ChannelRepository
-CreateChannelUseCase ..> EventPublisher
-ChangeHandleUseCase ..> HandleRegistry
-ChangeHandleUseCase ..> ChannelRepository
-ChangeHandleUseCase ..> AccessControlService
-ChangeHandleUseCase ..> EventPublisher
-UpdateBrandingUseCase ..> ChannelRepository
-UpdateBrandingUseCase ..> AccessControlService
-UpdateBrandingUseCase ..> EventPublisher
-AddMemberUseCase ..> ChannelMemberRepository
-AddMemberUseCase ..> AccessControlService
-AddMemberUseCase ..> EventPublisher
-RemoveMemberUseCase ..> ChannelMemberRepository
-RemoveMemberUseCase ..> AccessControlService
-RemoveMemberUseCase ..> EventPublisher
+class ChannelService {
++createChannel(ownerId, name): ChannelDTO
++getChannel(id): ChannelDTO
++updateBranding(id, branding): ChannelDTO
++updatePolicies(id, policies): ChannelDTO
++assignRole(id, userId, role): void
++removeRole(id, userId): void
 }
+
+class ChannelRepository {
++save(channel: Channel): void
++findById(id): Optional
++updateBranding(id, branding)
++updatePolicies(id, policies)
++assignRole(id, userId, role)
++removeRole(id, userId)
+}
+
+class Channel {
+-id: UUID
+-ownerId: UUID
+-name: String
+-branding: Branding
+-policies: ChannelPolicies
+-roles: Map<UUID, String>
+-createdAt: Instant
+-updatedAt: Instant
+}
+
+class Branding {
+-bannerUrl: String
+-avatarUrl: String
+-colorTheme: String
+-description: String
+}
+
+class ChannelPolicies {
+-contentGuidelines: String
+-uploadPermissions: String
+-moderationRules: String
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+
+class DomainEvent {
+}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+ChannelController --> ChannelService
+ChannelService --> ChannelRepository
+ChannelService --> OutboxEventPublisher : "ChannelCreated / ChannelUpdated / ChannelRoleChanged"
+ChannelRepository ..> CosmosDB
+OutboxEventPublisher ..> AzureServiceBusTopic
 
 @enduml

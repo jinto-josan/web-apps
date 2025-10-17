@@ -1,0 +1,53 @@
+@startuml
+title Notifications Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+participant "Azure Service Bus" as Bus
+participant "NotificationConsumer" as Consumer
+participant "NotificationService" as S
+participant "TemplateRenderer" as Tpl
+participant "DeliveryRepository" as Repo
+participant "PushAdapter" as Push
+participant "EmailAdapter" as Email
+participant "OutboxEventPublisher" as Outbox
+
+== New Video Notification ==
+Bus -> Consumer: NewVideoNotificationRequested{subscriberId, videoId}
+Consumer -> S: sendInApp(subscriberId, payload)
+S -> Repo: recordAttempt(notificationId, "in-app", "SENT")
+Repo --> S: ok
+
+S -> Tpl: render("new_video_email", model)
+Tpl --> S: subject/body
+S -> Email: send(to=subscriber.email, subject, body)
+alt email accepted
+S -> Repo: recordAttempt(notificationId, "email", "SENT")
+S -> Outbox: publish(NotificationSent{notificationId})
+else failure
+S -> Repo: recordAttempt(notificationId, "email", "FAILED")
+S -> Outbox: publish(DeliveryFailed{notificationId})
+end
+
+S -> Tpl: render("new_video_push", model)
+Tpl --> S: payload
+S -> Push: send(deviceToken, payload)
+Push --> S: ok
+
+@enduml

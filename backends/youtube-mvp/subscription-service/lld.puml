@@ -1,0 +1,64 @@
+@startuml
+title Subscription Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "SubscriptionService" {
+class SubscriptionController {
++POST /channels/{id}/subscribe
++DELETE /channels/{id}/subscribe
++GET /channels/{id}/subscribers
++PATCH /channels/{id}/notifications
+}
+
+class SubscriptionService {
++subscribe(channelId, userId)
++unsubscribe(channelId, userId)
++listSubscribers(channelId): List
++updateNotificationPrefs(userId, channelId, prefs)
++onVideoPublished(event)
+}
+
+class SubscriptionRepository {
++add(channelId, userId)
++remove(channelId, userId)
++findByChannel(channelId): List
++savePrefs(userId, channelId, prefs)
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+SubscriptionController --> SubscriptionService
+SubscriptionService --> SubscriptionRepository
+SubscriptionRepository ..> CosmosDB
+SubscriptionService --> OutboxEventPublisher : "SubscriptionAdded / SubscriptionRemoved / NewVideoNotificationRequested"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

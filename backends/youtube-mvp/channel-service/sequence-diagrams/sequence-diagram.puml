@@ -1,0 +1,61 @@
+@startuml
+title Channel Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Creator
+participant "ChannelController" as C
+participant "ChannelService" as S
+participant "ChannelRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+participant "CosmosDB" as Cosmos
+
+== Create Channel ==
+Creator -> C: POST /channels {name, branding}
+C -> S: createChannel(ownerId, name)
+S -> Repo: save(Channel)
+Repo -> Cosmos: create doc (partition channelId)
+Cosmos --> Repo: ok
+S -> Outbox: publish(ChannelCreated{channelId, ownerId})
+Outbox --> S: ack
+S --> Creator: 201 ChannelDTO
+
+== Update Branding ==
+newpage Update Branding
+Creator -> C: PATCH /channels/{id}/branding {avatarUrl, bannerUrl}
+C -> S: updateBranding(id, branding)
+S -> Repo: updateBranding(id, branding)
+Repo -> Cosmos: patch doc
+Cosmos --> Repo: ok
+S -> Outbox: publish(ChannelUpdated{channelId, fields=branding})
+Outbox --> S: ack
+S --> Creator: 200 ChannelDTO
+
+== Assign Role ==
+newpage Assign Role
+Creator -> C: POST /channels/{id}/roles {userId, role=Editor}
+C -> S: assignRole(id, userId, role)
+S -> Repo: assignRole(id, userId, role)
+Repo -> Cosmos: patch roles
+Cosmos --> Repo: ok
+S -> Outbox: publish(ChannelRoleChanged{channelId, userId, role})
+Outbox --> S: ack
+S --> Creator: 204
+
+@enduml

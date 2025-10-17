@@ -1,0 +1,51 @@
+@startuml
+title Thumbnail Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+participant "Azure Service Bus" as Bus
+participant "TranscodeCompletedConsumer" as Consumer
+participant "ThumbService" as S
+participant "BlobStorageClient" as Blob
+participant "ThumbRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+
+== Generate on Transcode ==
+Bus -> Consumer: TranscodeCompleted{videoId, assetId}
+Consumer -> S: generate(assetId)
+S -> Blob: storeThumbnail(videoId, bytes...)
+Blob --> S: url(s)
+S -> Repo: save(videoId, [thumbnails])
+Repo --> S: ok
+S -> Outbox: publish(ThumbnailUpdated{videoId})
+Outbox --> S: ack
+
+== Select Thumbnail ==
+newpage Select Thumbnail
+actor Creator
+participant "ThumbnailController" as C
+Creator -> C: POST /videos/{id}/thumbnails/select {url}
+C -> S: select(videoId, url)
+S -> Repo: setSelected(videoId, url)
+Repo --> S: ok
+S -> Outbox: publish(ThumbnailUpdated{videoId, selected=url})
+Outbox --> S: ack
+S --> Creator: 204
+
+@enduml

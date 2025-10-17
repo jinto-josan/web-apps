@@ -1,0 +1,63 @@
+@startuml
+title Studio Analytics Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "StudioAnalyticsService" {
+class AnalyticsController {
++GET /studio/{channelId}/metrics?range=
++GET /studio/{channelId}/demographics?range=
++GET /studio/{channelId}/rpm?range=
+}
+
+class AnalyticsQueryService {
++getMetrics(channelId, range): MetricsDTO
++getDemographics(channelId, range): DemographicsDTO
++getRpm(channelId, range): RpmDTO
+}
+
+interface SynapseAdapter {
++queryMetrics(channelId, range): MetricsDTO
++queryDemographics(channelId, range): DemographicsDTO
++queryRPM(channelId, range): RpmDTO
+}
+
+class MetricsDTO {
+}
+
+class DemographicsDTO {
+}
+
+class RpmDTO {
+}
+}
+
+package "Azure Integrations" {
+class Synapse
+class DataLake
+}
+
+AnalyticsController --> AnalyticsQueryService
+AnalyticsQueryService --> SynapseAdapter
+SynapseAdapter ..> Synapse
+SynapseAdapter ..> DataLake
+
+@enduml

@@ -1,0 +1,56 @@
+@startuml
+title Streaming Session Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Client
+participant "PlaybackController" as C
+participant "StreamingSessionService" as S
+participant "EntitlementRepository" as Ent
+participant "AdDecisionAdapter" as Ads
+participant "DrmLicenseAdapter" as DRM
+participant "SessionStore" as Store
+participant "OutboxEventPublisher" as Outbox
+
+== Start Playback Session ==
+Client -> C: GET /videos/{id}/play
+C -> S: startSession(videoId, userId, device)
+S -> Ent: checkEntitlement(userId, videoId)
+Ent --> S: true
+S -> Ads: decideSlots(videoId, userId, device)
+Ads --> S: [AdSlot]
+S -> DRM: issueLicense(videoId, userId, device)
+DRM --> S: drmLicenseUri
+S -> Store: create(StreamingSession{manifests, adSlots, drmLicenseUri})
+Store --> S: ok
+S -> Outbox: publish(ViewStarted{sessionId, videoId, userId})
+Outbox --> S: ack
+S --> Client: 200 {manifests, adSlots, drmLicenseUri}
+
+== Complete Session ==
+newpage Complete Session
+Client -> C: POST /sessions/{id}/complete {watchedSeconds}
+C -> S: completeSession(sessionId, watchedSeconds)
+S -> Store: update(sessionId, completed=true)
+Store --> S: ok
+S -> Outbox: publish(ViewCompleted{sessionId, videoId, watchedSeconds})
+Outbox --> S: ack
+S --> Client: 204
+
+@enduml

@@ -1,0 +1,94 @@
+@startuml
+title Live Ingest Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "LiveIngestService" {
+class LiveController {
++POST /live/{channelId}/start
++POST /live/{streamId}/stop
++GET /live/{streamId}/status
+}
+
+class LiveIngestService {
++start(channelId): StreamInfo
++stop(streamId): void
++status(streamId): StreamStatus
+}
+
+class StreamKeyRepository {
++getOrCreate(channelId): StreamKey
+}
+
+class IngestStateStore {
++set(streamId, state)
++get(streamId): StreamStatus
++delete(streamId)
+}
+
+interface RTMPIngestAdapter {
++allocatePipeline(streamKey): PipelineId
++releasePipeline(pipelineId)
+}
+
+interface PackagerAdapter {
++packageLive(pipelineId): ManifestUris
+}
+
+class ManifestUris {
+-hls: String
+-dash: String
+}
+class StreamInfo {
+-streamId: UUID
+-manifests: ManifestUris
+}
+class StreamStatus {
+-state: String
+-startedAt: Instant
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class AKS_GPU
+class BlobStorage
+class AzureServiceBusTopic
+class Redis
+}
+
+LiveController --> LiveIngestService
+LiveIngestService --> StreamKeyRepository
+LiveIngestService --> RTMPIngestAdapter
+LiveIngestService --> PackagerAdapter
+LiveIngestService --> IngestStateStore
+LiveIngestService --> OutboxEventPublisher : "LiveStreamStarted / LiveStreamEnded"
+StreamKeyRepository ..> CosmosDB
+RTMPIngestAdapter ..> AKS_GPU
+PackagerAdapter ..> BlobStorage
+IngestStateStore ..> Redis
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

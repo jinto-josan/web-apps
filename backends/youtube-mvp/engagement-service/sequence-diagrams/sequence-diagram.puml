@@ -1,0 +1,67 @@
+@startuml
+title Engagement Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Client
+participant "EngagementController" as C
+participant "EngagementService" as S
+participant "RawEventProducer" as EH
+participant "AggregationConsumer" as Agg
+participant "EngagementRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+participant "Redis" as Cache
+participant "AzureEventHubs" as EventHubs
+
+== Like ==
+Client -> C: POST /videos/{id}/like
+C -> S: like(videoId, userId)
+S -> EH: send(LikeAdded{videoId, userId})
+EH -> EventHubs: enqueue
+... async ...
+Agg -> Repo: incrementLikes(videoId)
+Repo --> Agg: ok
+Agg -> Cache: update likes
+Agg -> Outbox: publish(LikeAdded{videoId})
+Outbox --> Agg: ack
+S --> Client: 204
+
+== View Increment from Streaming ==
+newpage View Increment
+participant "StreamingSessionService" as Stream
+Stream -> EventHubs: ViewCompleted{videoId, watchedSeconds}
+... async ...
+Agg -> Repo: incrementViews(videoId, +1 or +watchedSeconds)
+Repo --> Agg: ok
+Agg -> Cache: update views
+Agg -> Outbox: publish(ViewIncremented{videoId})
+Outbox --> Agg: ack
+
+== Get Counters ==
+newpage Get Counters
+Client -> C: GET /videos/{id}/counters
+C -> S: getCounters(videoId)
+S -> Cache: get(videoId)
+Cache --> S: miss
+S -> Repo: get(videoId)
+Repo --> S: Counters
+S -> Cache: set(videoId, Counters)
+S --> Client: 200 CountersDTO
+
+@enduml

@@ -1,0 +1,83 @@
+@startuml
+title Community Posts Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "CommunityPostsService" {
+class PostsController {
++POST /channels/{id}/posts
++GET /channels/{id}/posts
++POST /channels/{id}/polls
++POST /channels/{id}/polls/{pollId}/vote
+}
+
+class PostsService {
++publishPost(channelId, authorId, content): PostDTO
++listPosts(channelId, page): Page
++createPoll(channelId, question, options): PollDTO
++vote(pollId, userId, option): void
+}
+
+class PostRepository {
++save(post: Post)
++findByChannel(channelId, page): Page
+}
+
+class PollRepository {
++save(poll: Poll)
++vote(pollId, userId, option)
+}
+
+class Post {
+-id
+-channelId
+-authorId
+-content
+-createdAt
+}
+class Poll {
+-id
+-channelId
+-question
+-options
+-votes
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+PostsController --> PostsService
+PostsService --> PostRepository
+PostsService --> PollRepository
+PostRepository ..> CosmosDB
+PollRepository ..> CosmosDB
+PostsService --> OutboxEventPublisher : "CommunityPostPublished"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

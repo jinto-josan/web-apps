@@ -1,0 +1,42 @@
+@startuml
+title Search Query Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Client
+participant "SearchController" as C
+participant "SearchService" as S
+participant "CognitiveSearchAdapter" as CS
+
+== Search ==
+Client -> C: GET /search?q=music&filters=hd;short&page=1
+C -> S: search("music", filters, page)
+S -> CS: query("music", filters, page)
+CS --> S: Page
+S --> Client: 200 Page
+
+== Suggest ==
+newpage Suggest
+Client -> C: GET /suggest?q=mu
+C -> S: suggest("mu")
+S -> CS: suggest("mu")
+CS --> S: ["music", "museum"]
+S --> Client: 200 ["music", "museum"]
+
+@enduml

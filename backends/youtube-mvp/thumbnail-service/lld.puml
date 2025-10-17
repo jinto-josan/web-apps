@@ -1,0 +1,77 @@
+@startuml
+title Thumbnail Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "ThumbnailService" {
+class ThumbnailController {
++POST /videos/{id}/thumbnails/select
++GET /videos/{id}/thumbnails
+}
+
+class ThumbService {
++generate(assetId): List
++select(videoId, thumbnailUrl): void
++list(videoId): List
+}
+
+class ThumbRepository {
++save(videoId, thumbs)
++setSelected(videoId, url)
++findByVideo(videoId): List
+}
+
+class Thumbnail {
+-url: String
+-timeSec: int
+-selected: boolean
+}
+
+class TranscodeCompletedConsumer {
++onTranscodeCompleted(event)
+}
+
+interface BlobStorageClient {
++storeThumbnail(videoId, bytes): String
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class BlobStorage
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+ThumbnailController --> ThumbService
+ThumbService --> ThumbRepository
+ThumbService --> BlobStorageClient
+TranscodeCompletedConsumer --> ThumbService : generate
+BlobStorageClient ..> BlobStorage
+ThumbRepository ..> CosmosDB
+ThumbService --> OutboxEventPublisher : "ThumbnailUpdated"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

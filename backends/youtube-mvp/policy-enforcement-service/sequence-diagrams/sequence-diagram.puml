@@ -1,0 +1,47 @@
+@startuml
+title Policy Enforcement Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Moderator
+participant "PolicyController" as C
+participant "PolicyService" as S
+participant "PolicyRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+participant "Azure Service Bus" as Bus
+
+== Update Policy ==
+Moderator -> C: PATCH /videos/{id}/policy {ageRestrictions, guidelines}
+C -> S: updatePolicy(videoId, policy)
+S -> Repo: save(videoId, policy)
+Repo --> S: ok
+S -> Outbox: publish(VideoPolicyUpdated{videoId})
+Outbox --> S: ack
+S --> Moderator: 204
+
+== Apply Claim Raised ==
+newpage Apply Claim
+Bus -> S: ContentClaimRaised{videoId, claimId}
+S -> Repo: findByVideo(videoId)
+Repo --> S: Policy
+S -> Repo: updateBlocks(videoId, regions)
+S -> Outbox: publish(VideoBlocked{videoId, regions})
+Outbox --> S: ack
+
+@enduml

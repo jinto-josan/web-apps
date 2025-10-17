@@ -1,0 +1,62 @@
+@startuml
+title Captions & Subtitles Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Creator
+participant "CaptionController" as C
+participant "CaptionService" as S
+participant "BlobStorageClient" as Blob
+participant "CaptionRepository" as Repo
+participant "STTAdapter" as STT
+participant "TranslationAdapter" as TR
+participant "OutboxEventPublisher" as Outbox
+
+== Upload Caption ==
+Creator -> C: POST /videos/{id}/captions {lang, file}
+C -> S: upload(videoId, lang, file)
+S -> Blob: storeCaption(videoId, lang, bytes)
+Blob --> S: uri
+S -> Repo: save(CaptionMeta{videoId, lang, uri})
+Repo --> S: ok
+S -> Outbox: publish(CaptionAdded{videoId, lang, uri})
+Outbox --> S: ack
+S --> Creator: 201 CaptionDTO
+
+== Auto Caption ==
+newpage Auto Caption
+Creator -> C: POST /videos/{id}/captions/auto {lang}
+C -> S: autoCaption(videoId, lang)
+S -> STT: generate(videoId, lang)
+STT --> S: uri
+S -> Repo: save(CaptionMeta{videoId, lang, uri})
+S -> Outbox: publish(CaptionAdded{videoId, lang, uri})
+S --> Creator: 202 CaptionDTO
+
+== Translate Caption ==
+newpage Translate Caption
+Creator -> C: POST /videos/{id}/captions/{captionId}/translate {targetLang}
+C -> S: translate(captionId, targetLang)
+S -> TR: translate(uri, targetLang)
+TR --> S: translatedUri
+S -> Repo: save(CaptionMeta{videoId, targetLang, translatedUri})
+S -> Outbox: publish(CaptionAdded{videoId, targetLang, translatedUri})
+S --> Creator: 202 CaptionDTO
+
+@enduml

@@ -1,0 +1,50 @@
+@startuml
+title Ads Decision Service - Sequence: Decide Ad
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor StreamingSessionService
+participant "AdsController" as C
+participant "AdsService" as S
+participant "ContractRepository" as Contracts
+participant "TargetingRepository" as Target
+participant "FrequencyCapStore" as Freq
+participant "BrandSafetyAdapter" as Safety
+participant "AuctionEngine" as Auction
+participant "OutboxEventPublisher" as Outbox
+
+StreamingSessionService -> C: GET /ads/decision?videoId=&userId=&device=
+C -> S: decide(videoId, userId, device)
+S -> Safety: check(videoId)
+Safety --> S: SafetyResult{safe=true}
+S -> Contracts: getActiveContracts()
+Contracts --> S: [AdContract]
+S -> Target: match(userId, videoId)
+Target --> S: [AdCandidate]
+loop for each candidate
+S -> Freq: checkAndUpdate(userId, adId)
+Freq --> S: allowed?
+end
+S -> Auction: runAuctions(filteredCandidates)
+Auction --> S: WinningAd -> AdDecision{slots}
+S -> Outbox: publish(AdServed{userId, videoId, adId})
+Outbox --> S: ack
+S --> StreamingSessionService: 200 AdDecision
+
+@enduml

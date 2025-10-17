@@ -1,0 +1,88 @@
+@startuml
+title Billing & Payout Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "BillingPayoutService" {
+class BillingController {
++POST /billing/run-aggregation
++GET /billing/payouts
++POST /billing/payouts/process
+}
+
+class BillingService {
++runAggregation(period): void
++listPayouts(channelId): List
++processPayout(payoutId): void
+}
+
+class RevenueAggregator {
++aggregate(DataLake, Synapse, period): void
+}
+
+class PayoutRepository {
++save(payout: Payout)
++findByChannel(channelId): List
++updateStatus(payoutId, status)
+}
+
+class TaxInfoRepository {
++get(channelId): TaxInfo
+}
+
+class Payout {
+-id: UUID
+-channelId: UUID
+-period: String
+-amount: double
+-status: String
+}
+class TaxInfo {
+-country: String
+-withholding: double
+}
+
+interface PaymentAdapter {
++transfer(channelId, amount): PaymentResult
+}
+class PaymentResult {
+-status: String
+-txnId: String
+}
+}
+
+package "Azure Integrations" {
+class AzureSQL
+class DataLake
+class Synapse
+}
+
+BillingController --> BillingService
+BillingService --> RevenueAggregator
+BillingService --> PayoutRepository
+BillingService --> TaxInfoRepository
+BillingService --> PaymentAdapter
+PayoutRepository ..> AzureSQL
+TaxInfoRepository ..> AzureSQL
+RevenueAggregator ..> DataLake
+RevenueAggregator ..> Synapse
+
+@enduml

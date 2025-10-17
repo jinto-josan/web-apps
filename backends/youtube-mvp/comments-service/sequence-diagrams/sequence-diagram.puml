@@ -1,0 +1,58 @@
+@startuml
+title Comments Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor User
+participant "CommentController" as C
+participant "CommentService" as S
+participant "CommentRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+participant "Redis" as Cache
+
+== Post Comment ==
+User -> C: POST /videos/{id}/comments {text, parentId?}
+C -> S: post(videoId, userId, parentId, text)
+S -> Repo: save(Comment)
+Repo --> S: Comment
+S -> Cache: invalidate videoId thread cache
+S -> Outbox: publish(CommentPosted{videoId, commentId, authorId})
+Outbox --> S: ack
+S --> User: 201 CommentDTO
+
+== Delete Comment ==
+newpage Delete Comment
+User -> C: DELETE /comments/{id}
+C -> S: delete(commentId, actorId)
+S -> Repo: delete(commentId)
+Repo --> S: ok
+S -> Cache: invalidate videoId thread cache
+S -> Outbox: publish(CommentDeleted{commentId})
+Outbox --> S: ack
+S --> User: 204
+
+== React to Comment ==
+newpage React to Comment
+User -> C: POST /comments/{id}/reactions {type=LIKE}
+C -> S: react(commentId, userId, type)
+S -> Repo: addReaction(commentId, userId, type)
+Repo --> S: ok
+S --> User: 204
+
+@enduml

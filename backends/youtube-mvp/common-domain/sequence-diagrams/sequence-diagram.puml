@@ -1,0 +1,273 @@
+@startuml
+title Common-Domain - Command Handling with Transactional Outbox
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+autonumber
+actor Client
+participant "API Controller" as Controller
+participant "CommandHandler/UseCase" as Handler
+participant "CorrelationContext" as Corr
+participant "Tracer" as Tracer
+participant "UnitOfWork" as UoW
+participant "Repository" as Repo
+participant "Aggregate" as Agg
+participant "EventPublisher" as Events
+participant "OutboxRepository" as Outbox
+participant "IdGenerator" as IdGen
+participant "Clock" as Clock
+database "AzureSQL" as SQL
+
+Client -> Controller: POST /resource {...}
+Controller -> Tracer: startSpan("HTTP request", traceparent?)
+Tracer --> Controller: active span
+Controller -> Corr: resolveCorrelationId(headers)
+Corr --> Controller: correlationId
+Controller -> Handler: execute(command, correlationId)
+Handler -> UoW: begin()
+Handler -> Repo: getById(command.id) or new
+Repo --> Handler: Agg or null
+alt create
+Handler -> IdGen: nextULID()
+IdGen --> Handler: newId
+Handler -> Clock: now()
+Clock --> Handler: now
+Handler -> Agg: create(command, now, newId)
+else update
+Handler -> Agg: apply(command)
+end
+Agg --> Handler: domainEvents[]
+Handler -> Repo: save(Agg) ' includes optimistic version increment
+Handler -> Events: publishAll(domainEvents) ' in-process
+Events -> Outbox: append(domainEvents, metadata{correlationId, causationId, traceparent})
+Outbox -> SQL: INSERT outbox rows (same transaction)
+SQL --> Outbox: ok
+Handler -> UoW: commit()
+UoW -> SQL: COMMIT
+SQL --> UoW: ok
+Handler --> Controller: result/view
+Controller --> Client: 200/201/202
+@enduml
+
+@startuml Common-Domain - Outbox Dispatcher to Azure Service Bus
+autonumber
+participant "OutboxDispatcher (Worker)" as Dispatcher
+participant "OutboxRepository" as Outbox
+database "AzureSQL" as SQL
+queue "Azure Service Bus Topic" as ASB
+participant "Tracer" as Tracer
+
+loop every N seconds
+Dispatcher -> Outbox: fetchBatch(status=PENDING, limit=100)
+Outbox -> SQL: SELECT ... FOR UPDATE SKIP LOCKED
+SQL --> Outbox: outboxEvents[]
+Outbox --> Dispatcher: events
+alt events available
+Dispatcher -> Tracer: startSpan("publish outbox batch")
+loop for each event
+Dispatcher -> ASB: publish(topic, body, props{messageId, correlationId, traceparent})
+ASB --> Dispatcher: brokerMessageId
+Dispatcher -> Outbox: markDispatched(eventId, dispatchedAt, brokerMessageId)
+Outbox -> SQL: UPDATE outbox SET dispatched_at=NOW, broker_id=...
+SQL --> Outbox: ok
+end
+Dispatcher -> Tracer: endSpan()
+else none
+Dispatcher -> Dispatcher: sleep(backoff)
+end
+end
+@enduml
+
+@startuml Common-Domain - Event Consumption with Inbox Idempotency
+autonumber
+queue "Azure Service Bus Topic" as ASB
+participant "EventProcessor (Worker)" as Processor
+participant "Tracer" as Tracer
+participant "InboxRepository" as Inbox
+database "AzureSQL" as SQL
+participant "EventRouter" as Router
+participant "UnitOfWork" as UoW
+participant "EventHandler" as Handler
+participant "Repository" as Repo
+participant "OutboxRepository" as Outbox
+
+ASB -> Processor: receive(message, props{messageId, correlationId, traceparent})
+Processor -> Tracer: startSpan("handle event", traceparent)
+Tracer --> Processor: active span
+Processor -> Inbox: beginProcess(messageId)
+Inbox -> SQL: INSERT messageId IF NOT EXISTS
+SQL --> Inbox: inserted? (true/false)
+Inbox --> Processor: started (true/false)
+alt duplicate (started=false)
+Processor -> ASB: complete(message) ' already processed
+Processor -> Tracer: endSpan()
+else first-time (started=true)
+Processor -> UoW: begin()
+Processor -> Router: resolveHandler(message.type)
+Router --> Processor: Handler
+Processor -> Handler: handle(domainEvent, correlationId)
+Handler -> Repo: load aggregates
+Repo --> Handler: Agg
+Handler -> Agg: apply(event effects)
+Handler -> Repo: save(Agg)
+Handler -> Outbox: append(new domain events, metadata...)
+alt success
+Processor -> UoW: commit()
+UoW -> SQL: COMMIT
+SQL --> UoW: ok
+Processor -> Inbox: markProcessed(messageId)
+Inbox -> SQL: UPDATE inbox SET processed_at=NOW
+SQL --> Inbox: ok
+Processor -> ASB: complete(message)
+Processor -> Tracer: endSpan()
+else failure
+Processor -> UoW: rollback()
+Processor -> Inbox: recordFailure(messageId, error, attempts++)
+Processor -> ASB: abandon or dead-letter (after maxDeliveryCount)
+Processor -> Tracer: endSpan(error)
+end
+end
+@enduml
+
+@startuml Common-Domain - HTTP Idempotency (Redis lock + SQL store)
+autonumber
+actor Client
+participant "API Controller" as Controller
+participant "IdempotencyService" as Idem
+queue "Azure Cache for Redis" as Redis
+database "AzureSQL (Idempotency Store)" as SQL
+participant "UseCase" as UseCase
+
+Client -> Controller: POST /payments (Idempotency-Key: K)
+Controller -> Idem: getStoredResult(K, requestHash)
+Idem -> SQL: SELECT result WHERE key=K AND requestHash
+SQL --> Idem: hit/miss
+alt cached result
+Idem --> Controller: stored response
+Controller --> Client: 200/201 (replayed)
+else not cached
+Idem -> Redis: SETNX lock:K TTL 60s
+Redis --> Idem: ok/not
+alt acquired lock
+Controller -> UseCase: execute(command)
+UseCase --> Controller: result
+Controller -> Idem: storeResult(K, requestHash, response)
+Idem -> SQL: UPSERT(key, requestHash, response, status, savedAt)
+SQL --> Idem: ok
+Idem -> Redis: DEL lock:K
+Controller --> Client: 201
+else lock busy
+Controller --> Client: 409 Conflict or 202 In-Progress
+end
+end
+@enduml
+
+@startuml Common-Domain - Correlation and Trace Context Propagation
+autonumber
+actor Client
+participant "API Controller" as Controller
+participant "TraceProvider (producer)" as TracerP
+participant "CorrelationContext (producer)" as CorrP
+participant "OutboxRepository" as Outbox
+queue "Azure Service Bus" as ASB
+participant "EventProcessor (consumer)" as Processor
+participant "TraceProvider (consumer)" as TracerC
+participant "CorrelationContext (consumer)" as CorrC
+
+Client -> Controller: HTTP request (traceparent?, X-Correlation-Id?)
+Controller -> TracerP: startSpan("HTTP", from headers)
+TracerP --> Controller: span + new traceparent if absent
+Controller -> CorrP: set(correlationId from header or generate)
+CorrP --> Controller: ok
+Controller -> Outbox: append(event, metadata{correlationId, causationId=spanId, traceparent})
+Outbox -> ASB: publish with properties {messageId, correlationId, traceparent}
+ASB --> Processor: deliver message
+Processor -> TracerC: startSpan("handle event", from message.traceparent)
+TracerC --> Processor: active span
+Processor -> CorrC: set(correlationId from message or new)
+CorrC --> Processor: ok
+Processor --> ASB: complete
+@enduml
+
+@startuml Common-Domain - Optimistic Concurrency Control
+autonumber
+participant "CommandHandler" as Handler
+participant "Repository" as Repo
+database "AzureSQL" as SQL
+
+Handler -> Repo: get(id)
+Repo -> SQL: SELECT *, version FROM aggregates WHERE id=?
+SQL --> Repo: Aggregate(v=N)
+Repo --> Handler: Agg(v=N)
+Handler -> Repo: save(Agg', expectedVersion=N)
+Repo -> SQL: UPDATE aggregates SET ..., version=N+1 WHERE id=? AND version=N
+alt rows affected = 1
+SQL --> Repo: ok
+Repo --> Handler: saved
+else rows affected = 0
+SQL --> Repo: conflict
+Repo --> Handler: ConcurrencyException
+end
+@enduml
+
+@startuml Common-Domain - Tenant Resolution (Multi-tenant Request Context)
+autonumber
+actor Client
+participant "API Controller" as Controller
+participant "TokenValidator" as TokenValidator
+participant "TenantResolver" as TenantResolver
+participant "TenantRepository" as TenantRepo
+database "AzureSQL (tenants)" as SQL
+participant "UseCase" as UseCase
+
+Client -> Controller: Request with Authorization header
+Controller -> TokenValidator: validate JWT
+TokenValidator --> Controller: claims { tid, tenant_domain }
+Controller -> TenantResolver: resolve(claims, host, headers)
+TenantResolver -> TenantRepo: findByIdOrDomain(tid, host)
+TenantRepo -> SQL: SELECT tenant
+SQL --> TenantRepo: Tenant
+TenantRepo --> TenantResolver: tenantId
+TenantResolver --> Controller: set RequestContext.tenantId
+Controller -> UseCase: execute(context.tenantId, ...)
+UseCase --> Controller: result
+Controller --> Client: 200
+@enduml
+
+@startuml Common-Domain - Feature Flags via Azure App Configuration
+autonumber
+participant "UseCase" as UseCase
+participant "FeatureFlagService" as Flags
+queue "In-memory Cache" as Cache
+participant "Azure App Configuration" as AppConfig
+participant "Azure Key Vault" as KV
+
+UseCase -> Flags: isEnabled("featureX", context)
+alt cache hit
+Flags -> Cache: GET featureX
+Cache --> Flags: true/false
+Flags --> UseCase: decision
+else cache miss/expired
+Flags -> AppConfig: GET feature flag featureX
+AppConfig --> Flags: flag JSON (conditions, % rollout)
+Flags -> KV: (optional) resolve Key Vault references
+KV --> Flags: secret values
+Flags -> Cache: SET featureX with TTL
+Flags --> UseCase: decision
+end
+@enduml

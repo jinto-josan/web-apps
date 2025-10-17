@@ -1,0 +1,72 @@
+@startuml
+title Policy Enforcement Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "PolicyEnforcementService" {
+class PolicyController {
++PATCH /videos/{id}/policy
++GET /videos/{id}/policy
+}
+
+class PolicyService {
++updatePolicy(videoId, policy): void
++applyClaim(claimId, videoId): void
++computeRegionalBlocks(videoId): List
+}
+
+class PolicyRepository {
++save(videoId, policy)
++findByVideo(videoId): Policy
++updateBlocks(videoId, regions)
+}
+
+class Policy {
+-videoId: UUID
+-copyright: boolean
+-communityGuidelines: String
+-ageRestrictions: String
+-regionalBlocks: List
+}
+
+class ContentClaimConsumer {
++onContentClaimRaised(event)
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+PolicyController --> PolicyService
+PolicyService --> PolicyRepository
+ContentClaimConsumer --> PolicyService : applyClaim
+PolicyRepository ..> CosmosDB
+PolicyService --> OutboxEventPublisher : "VideoPolicyUpdated / VideoBlocked"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

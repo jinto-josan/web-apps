@@ -1,4 +1,6 @@
-@startuml Common Domain - Shared DDD Building Blocks
+@startuml
+title Common Domain - Shared DDD Building Blocks (Optimized)
+
 skinparam shadowing false
 skinparam packageStyle rectangle
 skinparam classAttributeIconSize 0
@@ -6,205 +8,224 @@ skinparam fontName "Helvetica"
 skinparam titleFontName "Helvetica"
 skinparam legendFontName "Helvetica"
 skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
 
-package "common-domain" {
-' Core markers and base types
-interface Identifier {
-+asString(): String
+package "Core Building Blocks" {
+    interface Identifier {
+        +asString(): String
+    }
+    
+    interface ValueObject
+    
+    abstract class Entity {
+        +id: ID
+    }
+    
+    abstract class AggregateRoot {
+        +id: ID
+        +version: long
+        -pendingEvents: List
+        #record(event: DomainEvent): void
+        +markEventsCommitted(): void
+        +pendingDomainEvents(): List
+        {abstract} #apply(event: DomainEvent): void
+    }
+    
+    abstract class DomainEvent {
+        +eventId: String
+        +occurredAt: Instant
+    }
+    
+    class CorrelationIds {
+        +correlationId: String
+        +causationId: String
+        +traceId: String
+        +spanId: String
+    }
+    
+    class EventMetadata {
+        +aggregateId: String
+        +aggregateType: String
+        +eventType: String
+        +version: int
+        +producer: String
+        +tenantId: String
+        +correlation: CorrelationIds
+        +headers: Map
+    }
+    
+    class EventEnvelope {
+        +event: DomainEvent
+        +metadata: EventMetadata
+        +payloadJson: String
+    }
 }
 
-interface ValueObject
-
-abstract class Entity {
-+id: ID
+package "Event Infrastructure" {
+    interface EventPublisher {
+        +publish(event: DomainEvent): void
+        +publishAll(events: List): void
+        +publishEnvelope(envelope: EventEnvelope): void
+    }
+    
+    interface EventSubscriber {
+        +onMessage(envelope: EventEnvelope): void
+        +eventTypes(): List
+    }
+    
+    interface EventSerializer {
+        +serialize(event: DomainEvent, metadata: EventMetadata): String
+        +deserialize(eventType: String, version: int, payloadJson: String): DomainEvent
+    }
+    
+    interface SchemaRegistry {
+        +getSchema(eventType: String, version: int): String
+        +register(eventType: String, version: int, schema: String): void
+    }
 }
 
-abstract class AggregateRoot {
-+id: ID
-+version: long
--pendingEvents: List
-#record(event: DomainEvent): void
-+markEventsCommitted(): void
-+pendingDomainEvents(): List
-{abstract} #apply(event: DomainEvent): void
+package "Outbox Pattern" {
+    enum OutboxStatus {
+        PENDING
+        SENT
+        FAILED
+    }
+    
+    class OutboxMessage {
+        +id: String
+        +aggregateType: String
+        +aggregateId: String
+        +eventType: String
+        +version: int
+        +payloadJson: String
+        +headers: Map
+        +occurredAt: Instant
+        +enqueuedAt: Instant
+        +processedAt: Instant
+        +status: OutboxStatus
+        +attempts: int
+        +partitionKey: String
+        +lastError: String
+    }
+    
+    interface OutboxRepository {
+        +save(msg: OutboxMessage): void
+        +fetchBatch(status: OutboxStatus, limit: int): List
+        +markSent(id: String): void
+        +markFailed(id: String, error: String): void
+        +delete(id: String): void
+    }
+    
+    class OutboxRelay {
+        +pollAndPublish(): void
+        -publish(msg: OutboxMessage): void
+    }
 }
 
-' Events
-abstract class DomainEvent {
-+eventId: String
-+occurredAt: Instant
+package "Error Handling" {
+    abstract class DomainException {
+        +code: String
+        +message: String
+        +retryable: boolean
+        +details: Map
+    }
+    
+    class ValidationError {
+        +field: String
+        +message: String
+        +code: String
+    }
+    
+    class ValidationException extends DomainException {
+        +errors: List
+    }
+    
+    class NotFoundException extends DomainException
+    class ConflictException extends DomainException
+    class PreconditionFailedException extends DomainException
+    class UnauthorizedException extends DomainException
+    class RateLimitExceededException extends DomainException
+    
+    interface Result
+    class Ok implements Result {
+        +value: Object
+    }
+    
+    class Err implements Result {
+        +error: DomainException
+    }
 }
 
-class CorrelationIds {
-+correlationId: String
-+causationId: String
-+traceId: String
-+spanId: String
+package "Utilities" {
+    class PageRequest {
+        +limit: int
+        +continuationToken: String
+    }
+    
+    class Page {
+        +items: List
+        +continuationToken: String
+        +hasMore: boolean
+    }
+    
+    interface Clock {
+        +now(): Instant
+    }
+    
+    class SystemClock implements Clock
+    
+    class Ulid implements Identifier {
+        +value: String
+        +asString(): String
+    }
+    
+    interface IdGenerator {
+        +newId(): ID
+    }
+    
+    class UlidGenerator implements IdGenerator {
+        +newId(): Ulid
+    }
+    
+    interface Validator {
+        +validate(target: Object): void
+    }
+    
+    class Principal {
+        +subject: String
+        +roles: Set
+        +scopes: Set
+        +tenantId: String
+    }
+    
+    interface Mapper {
+        +toDto(source: Object): Object
+        +fromDto(dto: Object): Object
+    }
 }
 
-class EventMetadata {
-+aggregateId: String
-+aggregateType: String
-+eventType: String
-+version: int
-+producer: String
-+tenantId: String
-+correlation: CorrelationIds
-+headers: Map
-}
-
-class EventEnvelope {
-+event: DomainEvent
-+metadata: EventMetadata
-+payloadJson: String
-}
-
-interface EventPublisher {
-+publish(event: DomainEvent): void
-+publishAll(events: List): void
-+publishEnvelope(envelope: EventEnvelope): void
-}
-
-interface EventSubscriber {
-+onMessage(envelope: EventEnvelope): void
-+eventTypes(): List
-}
-
-interface EventSerializer {
-+serialize(event: DomainEvent, metadata: EventMetadata): String
-+deserialize(eventType: String, version: int, payloadJson: String): DomainEvent
-}
-
-interface SchemaRegistry {
-+getSchema(eventType: String, version: int): String
-+register(eventType: String, version: int, schema: String): void
-}
-
+' Key relationships
 EventEnvelope *-- EventMetadata
 EventEnvelope o-- DomainEvent
 EventMetadata -- CorrelationIds
 AggregateRoot "1" o-- "0.." DomainEvent : pendingEvents
-
-' Outbox pattern
-enum OutboxStatus {
-PENDING
-SENT
-FAILED
-}
-class OutboxMessage {
-+id: String
-+aggregateType: String
-+aggregateId: String
-+eventType: String
-+version: int
-+payloadJson: String
-+headers: Map
-+occurredAt: Instant
-+enqueuedAt: Instant
-+processedAt: Instant
-+status: OutboxStatus
-+attempts: int
-+partitionKey: String
-+lastError: String
-}
-
-interface OutboxRepository {
-+save(msg: OutboxMessage): void
-+fetchBatch(status: OutboxStatus, limit: int): List
-+markSent(id: String): void
-+markFailed(id: String, error: String): void
-+delete(id: String): void
-}
-
-class OutboxRelay {
-+pollAndPublish(): void
--publish(msg: OutboxMessage): void
-}
-
 OutboxRelay ..> OutboxRepository
 OutboxRelay ..> EventPublisher
-
-' Result and errors
-abstract class DomainException {
-+code: String
-+message: String
-+retryable: boolean
-+details: Map
-}
-class ValidationError {
-+field: String
-+message: String
-+code: String
-}
-class ValidationException extends DomainException {
-+errors: List
-}
-class NotFoundException extends DomainException
-class ConflictException extends DomainException
-class PreconditionFailedException extends DomainException
-class UnauthorizedException extends DomainException
-class RateLimitExceededException extends DomainException
-
-interface Result
-class Ok implements Result {
-+value: Object
-}
-class Err implements Result {
-+error: DomainException
-}
 Ok ..|> Result
 Err ..|> Result
 ValidationException o-- ValidationError
-
-' Pagination utilities
-class PageRequest {
-+limit: int
-+continuationToken: String
-}
-class Page {
-+items: List
-+continuationToken: String
-+hasMore: boolean
-}
-
-' Time and IDs
-interface Clock {
-+now(): Instant
-}
-class SystemClock implements Clock
-
-class Ulid implements Identifier {
-+value: String
-+asString(): String
-}
-interface IdGenerator {
-+newId(): ID
-}
-class UlidGenerator implements IdGenerator {
-+newId(): Ulid
-}
 UlidGenerator ..|> IdGenerator
 Ulid ..|> Identifier
 SystemClock ..|> Clock
-
-' Validation contracts
-interface Validator {
-+validate(target: Object): void
-}
-
-' Principal (auth context)
-class Principal {
-+subject: String
-+roles: Set
-+scopes: Set
-+tenantId: String
-}
-
-' Mapping and DTO helpers (optional)
-interface Mapper {
-+toDto(source: Object): Object
-+fromDto(dto: Object): Object
-}
-}
 
 @enduml

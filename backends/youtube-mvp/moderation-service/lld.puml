@@ -1,0 +1,68 @@
+@startuml
+title Moderation Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "ModerationService" {
+class ModerationController {
++POST /comments/{id}/moderate
++POST /channels/{id}/strikes
++POST /live/{id}/moderate
+}
+
+class ModerationService {
++moderateComment(commentId, action): void
++recordChannelStrike(channelId, reason): void
++moderateLiveChat(streamId, messageId, action): void
+}
+
+class ModerationRepository {
++saveStrike(channelId, strike)
++updateCommentStatus(commentId, status)
++saveLiveModeration(streamId, messageId, action)
+}
+
+class Strike {
+-id: UUID
+-channelId: UUID
+-reason: String
+-createdAt: Instant
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+ModerationController --> ModerationService
+ModerationService --> ModerationRepository
+ModerationRepository ..> CosmosDB
+ModerationService --> OutboxEventPublisher : "CommentModerated / ChannelStrikeRecorded"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml
+

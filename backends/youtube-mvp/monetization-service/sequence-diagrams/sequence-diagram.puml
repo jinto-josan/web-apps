@@ -1,0 +1,54 @@
+@startuml
+title Monetization Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Creator
+participant "MonetizationController" as C
+participant "MonetizationService" as S
+participant "SettingsRepository" as Settings
+participant "ContractsRepository" as Contracts
+participant "OutboxEventPublisher" as Outbox
+
+== Get Settings ==
+Creator -> C: GET /channels/{id}/monetization
+C -> S: getSettings(channelId)
+S -> Settings: get(channelId)
+Settings --> S: MonetizationSettings
+S --> Creator: 200 MonetizationSettingsDTO
+
+== Update Settings ==
+newpage Update Settings
+Creator -> C: PATCH /channels/{id}/monetization {adsEnabled, revshare}
+C -> S: updateSettings(channelId, dto)
+S -> Settings: save(channelId, settings)
+Settings --> S: ok
+S -> Outbox: publish(MonetizationUpdated{channelId})
+Outbox --> S: ack
+S --> Creator: 204
+
+== Add Contract ==
+newpage Add Contract
+Creator -> C: POST /channels/{id}/contracts {terms}
+C -> S: addContract(channelId, contract)
+S -> Contracts: save(contract)
+Contracts --> S: ok
+S --> Creator: 201
+
+@enduml

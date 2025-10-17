@@ -1,4 +1,6 @@
-@startuml user-profile-service-lld
+@startuml
+title User Profile Service - LLD
+
 skinparam shadowing false
 skinparam packageStyle rectangle
 skinparam classAttributeIconSize 0
@@ -6,166 +8,85 @@ skinparam fontName "Helvetica"
 skinparam titleFontName "Helvetica"
 skinparam legendFontName "Helvetica"
 skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
 
-package "user-profile-service" {
-class Subtitles {
-+defaultLanguage: String
-+alwaysOn: boolean
-}
-class Preferences {
-+language: String
-+autoplay: boolean
-+restrictedMode: boolean
-+subtitles: Subtitles
-}
-class PrivacySettings {
-+keepSubscriptionsPrivate: boolean
-+keepSavedPlaylistsPrivate: boolean
-+adPersonalization: boolean
-}
-class Contact {
-+emailEnc: String
-}
-class Profile {
-+id: UserId
-+displayName: String
-+about: String
-+avatarUri: String
-+bannerUri: String
-+locale: String
-+country: String
-+preferences: Preferences
-+privacy: PrivacySettings
-+contact: Contact
-+version: int
-+updateProfile(...): void
-+updatePreferences(p: Preferences): void
-+updatePrivacy(p: PrivacySettings): void
-}
 
-class BlockEntry {
-+userId: UserId
-+blockedUserId: UserId
-+createdAt: Instant
-}
-
-enum DsrType {
-EXPORT
-DELETE
-}
-enum DsrStatus {
-PENDING
-IN_PROGRESS
-COMPLETED
-FAILED
-}
-class DsrRequest {
-+id: String
-+userId: UserId
-+type: DsrType
-+status: DsrStatus
-+createdAt: Instant
-+updatedAt: Instant
-+exportLocation: String
-+error: String
-}
-
-interface ProfileRepository {
-+find(id: UserId): Optional
-+save(p: Profile, ifMatchEtag: String): Profile
-}
-interface BlockRepository {
-+add(owner: UserId, blocked: UserId): void
-+remove(owner: UserId, blocked: UserId): void
-+list(owner: UserId, limit: int, continuation: String): List
-}
-interface DsrRepository {
-+create(userId: UserId, type: DsrType): DsrRequest
-+get(userId: UserId, requestId: String): Optional
-+updateStatus(userId: UserId, requestId: String, status: DsrStatus, exportLocation: String, error: String): void
-}
-
-class PiiEncryptor {
-+encryptEmail(email: String): String
-+decryptEmail(emailEnc: String): String
-}
-class UriValidator {
-+validateBlobUri(uri: String): boolean
-}
-
-class ProfileUpdated
-class PreferencesUpdated
-class PrivacyUpdated
-class DsrRequested
-class DsrCompleted
-
-class UpdateProfileCommand {
-+displayName: String
-+about: String
-+avatarUri: String
-+bannerUri: String
-+locale: String
-+country: String
-}
-class UpdatePreferencesCommand {
-+preferences: Preferences
-}
-class UpdatePrivacyCommand {
-+privacy: PrivacySettings
-}
-
-class UpdateProfileUseCase {
-+execute(userId: UserId, cmd: UpdateProfileCommand): Profile
-}
-class UpdatePreferencesUseCase {
-+execute(userId: UserId, cmd: UpdatePreferencesCommand): Profile
-}
-class UpdatePrivacyUseCase {
-+execute(userId: UserId, cmd: UpdatePrivacyCommand): Profile
-}
-class RequestDsrUseCase {
-+export(userId: UserId): DsrRequest
-+delete(userId: UserId): DsrRequest
-}
-
-class DsrProcessor {
-+process(request: DsrRequest): void
-}
-
+package "UserProfileService" {
 class ProfileController {
-+getMe(): Profile
-+updateProfile(cmd: UpdateProfileCommand): Profile
-+updatePreferences(cmd: UpdatePreferencesCommand): Profile
-+updatePrivacy(cmd: UpdatePrivacyCommand): Profile
-+requestExport(): DsrRequest
-+requestDelete(): DsrRequest
-+getBlocks(): List
-+addBlock(blockedUserId: String): void
-+removeBlock(blockedUserId: String): void
++GET /users/{id}/profile
++PATCH /users/{id}/profile
++GET /users/{id}/settings
++PATCH /users/{id}/settings
++GET /users/{id}/preferences
++PATCH /users/{id}/preferences
 }
 
-' Associations
-Profile *-- Preferences
-Preferences *-- Subtitles
-Profile *-- PrivacySettings
-Profile *-- Contact
-ProfileController ..> UpdateProfileUseCase
-ProfileController ..> UpdatePreferencesUseCase
-ProfileController ..> UpdatePrivacyUseCase
-ProfileController ..> RequestDsrUseCase
-UpdateProfileUseCase ..> ProfileRepository
-UpdateProfileUseCase ..> UriValidator
-UpdateProfileUseCase ..> PiiEncryptor
-UpdateProfileUseCase ..> EventPublisher
-UpdatePreferencesUseCase ..> ProfileRepository
-UpdatePreferencesUseCase ..> EventPublisher
-UpdatePrivacyUseCase ..> ProfileRepository
-UpdatePrivacyUseCase ..> EventPublisher
-RequestDsrUseCase ..> DsrRepository
-RequestDsrUseCase ..> EventPublisher
-DsrProcessor ..> DsrRepository
-DsrProcessor ..> EventPublisher
-ProfileController ..> BlockRepository
+class UserProfileService {
++getProfile(userId): UserProfileDTO
++updateProfile(userId, dto): UserProfileDTO
++getSettings(userId): SettingsDTO
++updateSettings(userId, dto): SettingsDTO
++getPreferences(userId): PreferencesDTO
++updatePreferences(userId, dto): PreferencesDTO
 }
+
+class UserProfileRepository {
++findByUserId(userId): Optional
++save(profile: UserProfile): void
++updateSettings(userId, settings: Settings): void
++updatePreferences(userId, prefs: Preferences): void
+}
+
+class UserProfile {
+-userId: UUID
+-attributes: Map<String, String>
+-settings: Settings
+-preferences: Preferences
+-updatedAt: Instant
+}
+
+class Settings {
+-privacy: String
+-notifications: Map<String, Boolean>
+-language: String
+}
+
+class Preferences {
+-topics: List
+-theme: String
+-autoplay: boolean
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+
+class DomainEvent {
+-type: String
+-payloadJson: String
+-occurredAt: Instant
+}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+ProfileController --> UserProfileService
+UserProfileService --> UserProfileRepository
+UserProfileService --> OutboxEventPublisher : "ProfileUpdated / SettingsUpdated / PreferencesUpdated"
+UserProfileRepository ..> CosmosDB
+OutboxEventPublisher ..> AzureServiceBusTopic
 
 @enduml

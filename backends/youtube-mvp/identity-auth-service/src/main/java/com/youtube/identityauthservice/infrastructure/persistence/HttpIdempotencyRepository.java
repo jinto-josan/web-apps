@@ -1,4 +1,4 @@
-package com.youtube.identityauthservice.domain.repositories;
+package com.youtube.identityauthservice.infrastructure.persistence;
 
 import com.youtube.identityauthservice.domain.model.HttpIdempotency;
 import org.springframework.data.jpa.repository.JpaRepository;

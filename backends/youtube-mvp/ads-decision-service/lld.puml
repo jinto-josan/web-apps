@@ -1,0 +1,98 @@
+@startuml
+title Ads Decision Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "AdsDecisionService" {
+class AdsController {
++GET /ads/decision?videoId=&userId=&device=
+}
+
+class AdsService {
++decide(videoId, userId, device): AdDecision
+}
+
+class AuctionEngine {
++runAuctions(candidates): WinningAd
+}
+
+class ContractRepository {
++getActiveContracts(): List
+}
+
+class TargetingRepository {
++match(userId, videoId): List
+}
+
+class FrequencyCapStore {
++checkAndUpdate(userId, adId): boolean
+}
+
+class BrandSafetyAdapter {
++check(videoId): SafetyResult
+}
+
+class AdDecision {
+-slots: List
+}
+class AdSlot {
+-pos: String
+-duration: int
+-vastTag: String
+}
+class AdContract {
+-id: UUID
+-bidFloor: double
+}
+class AdCandidate {
+-contractId: UUID
+-targetingScore: double
+}
+class SafetyResult {
+-safe: boolean
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class AzureSQL
+class CosmosDB
+class Redis
+class AzureServiceBusTopic
+}
+
+AdsController --> AdsService
+AdsService --> ContractRepository
+AdsService --> TargetingRepository
+AdsService --> FrequencyCapStore
+AdsService --> BrandSafetyAdapter
+AdsService --> AuctionEngine
+ContractRepository ..> AzureSQL
+TargetingRepository ..> CosmosDB
+FrequencyCapStore ..> Redis
+AdsService --> OutboxEventPublisher : "AdServed"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

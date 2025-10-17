@@ -1,0 +1,51 @@
+@startuml
+title Translation Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Creator
+participant "TranslationController" as C
+participant "TranslationService" as S
+participant "TranslationJobRepository" as Repo
+participant "AzureTranslatorAdapter" as MT
+participant "OutboxEventPublisher" as Outbox
+
+== Request Translation ==
+Creator -> C: POST /translate/videos/{id} {srcLocale, targetLocales}
+C -> S: requestTranslation(videoId, src, targets)
+S -> Repo: save(TranslationJob{PENDING})
+Repo --> S: jobId
+loop for each target locale
+S -> MT: translate(metadata, target)
+MT --> S: translated
+end
+S -> Repo: updateStatus(jobId, COMPLETED)
+S -> Outbox: publish(VideoMetadataTranslated{videoId, locales})
+Outbox --> S: ack
+S --> Creator: 202 {jobId}
+
+== Approve ==
+newpage Approve
+Creator -> C: POST /translate/review/{jobId}/approve
+C -> S: approve(jobId)
+S -> Repo: updateStatus(jobId, APPROVED)
+Repo --> S: ok
+S --> Creator: 204
+
+@enduml

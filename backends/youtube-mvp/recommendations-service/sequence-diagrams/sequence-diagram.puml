@@ -1,0 +1,49 @@
+@startuml
+title Recommendations Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Client
+participant "FeedController" as C
+participant "RecommendationService" as S
+participant "ModelStore" as Store
+participant "Azure Service Bus" as Bus
+
+== Get Personalized Feed ==
+Client -> C: GET /users/{id}/feed?page=1
+C -> S: getFeed(userId, page)
+S -> Store: getTopN(userId, 50)
+Store --> S: [FeedItem]
+S --> Client: 200 Page
+
+== Related Videos ==
+newpage Related Videos
+Client -> C: GET /videos/{id}/related
+C -> S: getRelated(videoId)
+S -> Store: getRelatedByCoView(videoId)
+Store --> S: [FeedItem]
+S --> Client: 200 [FeedItemDTO]
+
+== Update Features on WatchEvent ==
+newpage Update Features on WatchEvent
+Bus -> S: WatchEventRecorded{userId, videoId, watchedSeconds}
+S -> Store: updateUserFeatures(userId, signals)
+Store --> S: ok
+
+@enduml

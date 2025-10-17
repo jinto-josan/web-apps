@@ -1,0 +1,55 @@
+@startuml
+title Report Abuse Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor User
+participant "ReportController" as C
+participant "ReportService" as S
+participant "ReportRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+
+== Submit Report ==
+User -> C: POST /reports {targetId, type, reason}
+C -> S: submit(report)
+S -> Repo: save(Report{status=OPEN})
+Repo --> S: reportId
+S -> Outbox: publish(AbuseReportSubmitted{reportId})
+Outbox --> S: ack
+S --> User: 201 {reportId}
+
+== Triage ==
+newpage Triage
+actor Moderator
+Moderator -> C: POST /reports/{id}/triage {decision=ACCEPT}
+C -> S: triage(reportId, decision)
+S -> Repo: updateStatus(reportId, UNDER_REVIEW)
+Repo --> S: ok
+S --> Moderator: 204
+
+== Escalate ==
+newpage Escalate
+Moderator -> C: POST /reports/{id}/escalate
+C -> S: escalate(reportId)
+S -> Repo: updateStatus(reportId, ESCALATED)
+S -> Outbox: publish(AbuseReportEscalated{reportId})
+Outbox --> S: ack
+S --> Moderator: 204
+
+@enduml

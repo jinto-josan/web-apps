@@ -1,0 +1,87 @@
+@startuml
+title Captions & Subtitles Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "CaptionsSubtitlesService" {
+class CaptionController {
++POST /videos/{id}/captions
++GET /videos/{id}/captions
++POST /videos/{id}/captions/auto
++POST /videos/{id}/captions/{captionId}/translate
+}
+
+class CaptionService {
++upload(videoId, lang, file): CaptionDTO
++list(videoId): List
++autoCaption(videoId, lang): CaptionDTO
++translate(captionId, targetLang): CaptionDTO
+}
+
+class CaptionRepository {
++save(meta: CaptionMeta)
++findByVideo(videoId): List
++updateLang(id, lang)
+}
+
+class CaptionMeta {
+-id: UUID
+-videoId: UUID
+-language: String
+-uri: String
+-createdAt: Instant
+}
+
+interface BlobStorageClient {
++storeCaption(videoId, lang, bytes): String
+}
+
+interface STTAdapter {
++generate(videoId, lang): String
+}
+
+interface TranslationAdapter {
++translate(uri, targetLang): String
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class BlobStorage
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+CaptionController --> CaptionService
+CaptionService --> BlobStorageClient
+CaptionService --> CaptionRepository
+CaptionService --> STTAdapter
+CaptionService --> TranslationAdapter
+CaptionRepository ..> CosmosDB
+BlobStorageClient ..> BlobStorage
+CaptionService --> OutboxEventPublisher : "CaptionAdded"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

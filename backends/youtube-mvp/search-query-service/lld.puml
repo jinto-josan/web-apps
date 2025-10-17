@@ -1,0 +1,56 @@
+@startuml
+title Search Query Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "SearchQueryService" {
+class SearchController {
++GET /search?q=&filters=&page=
++GET /suggest?q=
+}
+
+class SearchService {
++search(query, filters, page): Page
++suggest(prefix): List
+}
+
+class SearchResult {
+-videoId: UUID
+-title: String
+-snippet: String
+-thumbnailUrl: String
+}
+
+interface CognitiveSearchAdapter {
++query(q, filters, page): Page
++suggest(prefix): List
+}
+}
+
+package "Azure Integrations" {
+class AzureCognitiveSearch
+}
+
+SearchController --> SearchService
+SearchService --> CognitiveSearchAdapter
+CognitiveSearchAdapter ..> AzureCognitiveSearch
+
+@enduml

@@ -28,10 +28,10 @@ package "Edge Layer" as Edge {
 package "Core Infrastructure" as Core {
     component "Azure AD\n(OIDC/OAuth)" as AAD
     component "Azure Key Vault" as KV
-    queue "Azure Event Hubs" as EH
+    queue "AzureEventHubs" as EH
     queue "Azure Service Bus" as SB
-    database "Cosmos DB" as COSMOS
-    database "Azure SQL\nDatabase" as SQL
+    database "CosmosDB" as COSMOS
+    database "AzureSQL\nDatabase" as SQL
     component "Azure Blob\nStorage" as BLOB
     database "Azure Cache\nfor Redis" as REDIS
     component "Azure AI Search" as AISEARCH

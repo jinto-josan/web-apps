@@ -1,0 +1,83 @@
+@startuml
+title Shorts Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "ShortsService" {
+class ShortsController {
++POST /shorts/uploads/sessions
++POST /shorts/{id}/publish
++POST /shorts/{id}/remix
+}
+
+class ShortsService {
++createUploadSession(uploaderId, size, checksum): UploadSessionDTO
++publish(shortId): void
++remix(shortId, sourceVideoId, audioTrackId): RemixResult
+}
+
+interface BlobStorageClient {
++reserveShortPath(shortId): String
+}
+
+interface TranscodeAdapter {
++encodeShort(inputBlob): Renditions
+}
+
+interface AudioLibraryAdapter {
++getTrack(audioTrackId): AudioTrack
+}
+
+class Renditions {
+-hls: String
+-dash: String
+-thumbs: List
+}
+class AudioTrack {
+-id: String
+-uri: String
+}
+class ShortMetadataRepository {
++save(meta)
++updateRenditions(shortId, renditions)
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class BlobStorage
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+ShortsController --> ShortsService
+ShortsService --> BlobStorageClient
+ShortsService --> TranscodeAdapter
+ShortsService --> AudioLibraryAdapter
+ShortMetadataRepository ..> CosmosDB
+ShortsService --> OutboxEventPublisher : "VideoPublished (short)"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

@@ -18,3 +18,27 @@ dist/
 *.log
 .DS_Store
 .env
+
+# Intellij IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar
+*.gz
+./**/compiler.xml
+./**/encodings.xml
+./**/jarRepositories.xml
+./**/misc.xml
+./**/vcs.xml
+./**/workspace.xml
+./**/settings.xml
+./**/modules.xml
+./**/codeStyles.xml
+./**/inspectionProfiles.xml
+./**/runConfigurations.xml

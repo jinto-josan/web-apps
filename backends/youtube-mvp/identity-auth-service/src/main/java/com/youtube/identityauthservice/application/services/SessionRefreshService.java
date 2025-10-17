@@ -1,13 +1,15 @@
-package com.youtube.identityauthservice.domain.services;
+package com.youtube.identityauthservice.application.services;
 
 
 import com.github.f4b6a3.ulid.UlidCreator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.youtube.identityauthservice.domain.model.OutboxEvent;
 import com.youtube.identityauthservice.domain.model.RefreshToken;
 import com.youtube.identityauthservice.domain.model.Session;
 import com.youtube.identityauthservice.infrastructure.persistence.OutboxRepository;
 import com.youtube.identityauthservice.infrastructure.persistence.RefreshTokenRepository;
 import com.youtube.identityauthservice.infrastructure.persistence.SessionRepository;
+import com.youtube.identityauthservice.infrastructure.util.Hashing;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;

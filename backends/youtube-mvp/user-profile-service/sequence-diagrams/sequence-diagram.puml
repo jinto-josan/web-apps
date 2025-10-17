@@ -1,0 +1,60 @@
+@startuml
+title User Profile Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Client
+participant "ProfileController" as C
+participant "UserProfileService" as S
+participant "UserProfileRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+participant "CosmosDB" as Cosmos
+
+== Get Profile ==
+Client -> C: GET /users/{id}/profile
+C -> S: getProfile(userId)
+S -> Repo: findByUserId(userId)
+Repo -> Cosmos: query by partition key userId
+Cosmos --> Repo: UserProfile
+Repo --> S: UserProfile
+S --> C: 200 UserProfileDTO
+
+== Update Settings ==
+newpage Update Settings
+Client -> C: PATCH /users/{id}/settings {notifications, privacy}
+C -> S: updateSettings(userId, dto)
+S -> Repo: updateSettings(userId, Settings)
+Repo -> Cosmos: upsert document
+Cosmos --> Repo: ok
+S -> Outbox: publish(SettingsUpdated{userId})
+Outbox --> S: ack
+S --> Client: 200 SettingsDTO
+
+== Update Preferences ==
+newpage Update Preferences
+Client -> C: PATCH /users/{id}/preferences {topics, theme}
+C -> S: updatePreferences(userId, dto)
+S -> Repo: updatePreferences(userId, Preferences)
+Repo -> Cosmos: upsert document
+Cosmos --> Repo: ok
+S -> Outbox: publish(PreferencesUpdated{userId})
+Outbox --> S: ack
+S --> Client: 200 PreferencesDTO
+
+@enduml

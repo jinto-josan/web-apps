@@ -1,0 +1,96 @@
+@startuml
+title Streaming Session Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "StreamingSessionService" {
+class PlaybackController {
++GET /videos/{id}/play
++POST /sessions/{id}/complete
+}
+
+class StreamingSessionService {
++startSession(videoId, userId, device): SessionDTO
++completeSession(sessionId, watchedSeconds): void
+}
+
+class EntitlementRepository {
++checkEntitlement(userId, videoId): boolean
+}
+
+class SessionStore {
++create(session: StreamingSession)
++get(sessionId): Optional
++update(sessionId, data)
++delete(sessionId)
+}
+
+class StreamingSession {
+-id: UUID
+-videoId: UUID
+-userId: UUID
+-manifests: Map<String, String>
+-adSlots: List
+-drmLicenseUri: String
+-startedAt: Instant
+-completed: boolean
+}
+
+class AdDecisionAdapter {
++decideSlots(videoId, userId, device): List
+}
+
+class DrmLicenseAdapter {
++issueLicense(videoId, userId, device): String
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+
+class AdSlot {
+-pos: String
+-duration: int
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class Redis
+class CosmosDB
+class AzureServiceBusTopic
+class AdsDecisionService
+class DrmLicenseService
+}
+
+PlaybackController --> StreamingSessionService
+StreamingSessionService --> EntitlementRepository
+StreamingSessionService --> SessionStore
+StreamingSessionService --> AdDecisionAdapter
+StreamingSessionService --> DrmLicenseAdapter
+StreamingSessionService --> OutboxEventPublisher : "ViewStarted / ViewCompleted"
+SessionStore ..> Redis
+EntitlementRepository ..> CosmosDB
+AdDecisionAdapter ..> AdsDecisionService
+DrmLicenseAdapter ..> DrmLicenseService
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

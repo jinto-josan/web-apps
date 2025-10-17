@@ -1,4 +1,6 @@
-@startuml notifications-service-lld
+@startuml
+title Notifications Service - LLD
+
 skinparam shadowing false
 skinparam packageStyle rectangle
 skinparam classAttributeIconSize 0
@@ -6,460 +8,74 @@ skinparam fontName "Helvetica"
 skinparam titleFontName "Helvetica"
 skinparam legendFontName "Helvetica"
 skinparam noteFontName "Helvetica"
-title Class Diagram - notifications-service
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
 
-package "common" {
-abstract class DomainEvent {
-+eventId: String
-+occurredAt: Instant
-}
-interface EventPublisher {
-+publish(event: DomainEvent): void
-+publishAll(events: List): void
-}
-class UserId
-}
 
-package "notifications-service" {
-' IDs and value objects
-class NotificationId
-class DeliveryId
-class DeviceTokenId
-class Locale {
-+code: String
-}
-class EmailAddress {
-+value: String
-}
-class PhoneNumber {
-+e164: String
-}
-class DeepLink {
-+uri: String
+package "NotificationsService" {
+class NotificationConsumer {
++onNewVideoNotificationRequested(event)
++onCommentPosted(event)
 }
 
-enum Channel {
-IN_APP
-PUSH
-EMAIL
-SMS
-}
-enum PushProviderType {
-FCM
-APNS
-}
-enum DeliveryState {
-PENDING
-SENDING
-SUCCEEDED
-FAILED
-CANCELLED
-}
-enum NotificationType {
-NEW_VIDEO
-COMMENT_REPLY
-MENTION
-SYSTEM
-CUSTOM
+class NotificationService {
++sendInApp(userId, payload)
++sendPush(deviceToken, payload)
++sendEmail(to, subject, body)
 }
 
-' Templates and rendering
-class NotificationTemplate {
-+id: String
-+key: String
-+type: NotificationType
-+channels: Set
-}
-class InAppTemplate {
-+title: String
-+body: String
-}
-class PushTemplate {
-+title: String
-+body: String
-+data: Map
-}
-class EmailTemplate {
-+subject: String
-+bodyHtml: String
-+bodyText: String
-}
-class SmsTemplate {
-+bodyText: String
+class DeliveryRepository {
++recordAttempt(notificationId, channel, status)
++getState(notificationId): DeliveryState
 }
 
-class ChannelTemplates {
-+inApp: InAppTemplate
-+push: PushTemplate
-+email: EmailTemplate
-+sms: SmsTemplate
+class DeliveryState {
+-notificationId: UUID
+-attempts: int
+-status: String
 }
 
-interface TemplateRepository {
-+findByKey(type: NotificationType, key: String): Optional
-+getChannelTemplates(templateId: String, locale: Locale): ChannelTemplates
+interface PushAdapter {
++send(deviceToken, payload)
 }
 
-class InAppContent {
-+title: String
-+body: String
-+deepLink: DeepLink
+interface EmailAdapter {
++send(to, subject, body)
 }
-class PushContent {
-+title: String
-+body: String
-+data: Map
-+deepLink: DeepLink
+class TemplateRenderer {
++render(name, model): String
 }
-class EmailContent {
-+subject: String
-+html: String
-+text: String
+class OutboxEventPublisher {
++publish(event: DomainEvent)
 }
-class SmsContent {
-+text: String
+class DomainEvent {}
 }
 
-class RenderedBundle {
-+inApp: InAppContent
-+push: PushContent
-+email: EmailContent
-+sms: SmsContent
+package "Azure Integrations" {
+class CosmosDB
+class AzureCommunicationServices
+class PushProvider
+class AzureServiceBusTopic
 }
 
-class TemplateEngine {
-+render(templates: ChannelTemplates, locale: Locale, vars: Map): RenderedBundle
-}
-
-' Recipient and preferences
-class Recipient {
-+userId: UserId
-+locale: Locale
-+email: EmailAddress
-+phone: PhoneNumber
-+deviceTokens: List
-}
-
-class DeviceToken {
-+id: DeviceTokenId
-+userId: UserId
-+provider: PushProviderType
-+token: String
-+deviceId: String
-+appId: String
-+enabled: boolean
-+lastSeenAt: Instant
-}
-
-interface DeviceTokenRepository {
-+register(token: DeviceToken): void
-+disable(id: DeviceTokenId): void
-+remove(id: DeviceTokenId): void
-+listByUser(userId: UserId): List
-+findByToken(token: String): Optional
-}
-
-class RecipientPreferences {
-+enabledChannelsByType: Map
-+quietHoursStart: String
-+quietHoursEnd: String
-}
-
-interface PreferencesClient {
-+getPreferences(userId: UserId): RecipientPreferences
-}
-
-interface ProfileClient {
-+getEmail(userId: UserId): Optional
-+getLocale(userId: UserId): Locale
-+getPhone(userId: UserId): Optional
-}
-
-class RecipientResolver {
-+resolve(userId: UserId): Recipient
-+filterChannelsByPreferences(recipient: Recipient, type: NotificationType, requested: Set): Set
-}
-
-class RateLimiter {
-+canSend(userId: UserId, type: NotificationType): boolean
-+record(userId: UserId, type: NotificationType): void
-}
-
-class SuppressionPolicy {
-+isSuppressed(recipient: Recipient, type: NotificationType, now: Instant): boolean
-}
-
-class DeduplicationService {
-+isDuplicate(dedupKey: String, ttlSeconds: int): boolean
-+record(dedupKey: String, ttlSeconds: int): void
-}
-
-' In-app notification aggregate
-class Notification {
-+id: NotificationId
-+userId: UserId
-+type: NotificationType
-+title: String
-+body: String
-+deepLink: DeepLink
-+unread: boolean
-+createdAt: Instant
-+readAt: Instant
-+markRead(): void
-}
-
-interface NotificationRepository {
-+save(n: Notification): Notification
-+findByUser(userId: UserId, limit: int, continuation: String): List
-+markRead(userId: UserId, id: NotificationId): void
-+markAllRead(userId: UserId): void
-}
-
-' Delivery model
-class DeliveryStatusDetail {
-+channel: Channel
-+state: DeliveryState
-+providerMessageId: String
-+errorCode: String
-+errorMessage: String
-+updatedAt: Instant
-}
-
-class DeliveryJob {
-+id: DeliveryId
-+userId: UserId
-+type: NotificationType
-+channels: Set
-+attempts: int
-+scheduledAt: Instant
-+nextAttemptAt: Instant
-+statusByChannel: Map
-}
-
-interface DeliveryJobRepository {
-+create(job: DeliveryJob): DeliveryJob
-+update(job: DeliveryJob): void
-+find(id: DeliveryId): Optional
-+findPending(before: Instant, limit: int): List
-}
-
-' Providers and dispatcher
-interface PushProvider {
-+send(content: PushContent, token: DeviceToken): ProviderResult
-}
-interface EmailProvider {
-+send(content: EmailContent, to: EmailAddress): ProviderResult
-}
-interface SmsProvider {
-+send(content: SmsContent, to: PhoneNumber): ProviderResult
-}
-
-class ProviderResult {
-+success: boolean
-+providerMessageId: String
-+errorCode: String
-+errorMessage: String
-}
-
-class FcmPushProvider {
-+send(content: PushContent, token: DeviceToken): ProviderResult
-}
-class ApnsPushProvider {
-+send(content: PushContent, token: DeviceToken): ProviderResult
-}
-class AcsEmailProvider {
-+send(content: EmailContent, to: EmailAddress): ProviderResult
-}
-class AcsSmsProvider {
-+send(content: SmsContent, to: PhoneNumber): ProviderResult
-}
-
-class ChannelDispatcher {
-+dispatch(recipient: Recipient, bundle: RenderedBundle, channels: Set): Map
-}
-
-class RetryPolicy {
-+nextBackoff(attempt: int): Duration
-+shouldStop(attempt: int): boolean
-}
-
-class DeliveryOrchestrator {
-+scheduleAndSend(recipient: Recipient, type: NotificationType, channels: Set, bundle: RenderedBundle): DeliveryJob
-+retry(job: DeliveryJob): void
-}
-
-' Use cases and commands
-class SendNotificationCommand {
-+recipientUserId: String
-+type: NotificationType
-+templateKey: String
-+variables: Map
-+requestedChannels: Set
-+dedupKey: String
-+storeInApp: boolean
-}
-
-class BroadcastNotificationCommand {
-+userIds: List
-+type: NotificationType
-+templateKey: String
-+variables: Map
-+requestedChannels: Set
-}
-
-class SendNotificationUseCase {
-+execute(cmd: SendNotificationCommand): void
-}
-
-class BroadcastNotificationUseCase {
-+execute(cmd: BroadcastNotificationCommand): void
-}
-
-class GetFeedUseCase {
-+list(userId: UserId, limit: int, continuation: String): List
-}
-
-class MarkReadUseCase {
-+mark(userId: UserId, id: NotificationId): void
-+markAll(userId: UserId): void
-}
-
-class RegisterDeviceUseCase {
-+register(userId: UserId, req: DeviceRegistrationRequest): DeviceToken
-}
-
-class UnregisterDeviceUseCase {
-+unregister(userId: UserId, tokenId: DeviceTokenId): void
-}
-
-class RetryFailedDeliveriesUseCase {
-+execute(limit: int): void
-}
-
-' DTOs / API
-class DeviceRegistrationRequest {
-+token: String
-+provider: PushProviderType
-+deviceId: String
-+appId: String
-}
-class SendNotificationRequest {
-+userId: String
-+type: String
-+templateKey: String
-+variables: Map
-+channels: List
-+dedupKey: String
-+storeInApp: boolean
-}
-class BroadcastRequest {
-+userIds: List
-+type: String
-+templateKey: String
-+variables: Map
-+channels: List
-}
-class NotificationView {
-+id: String
-+title: String
-+body: String
-+deepLink: String
-+unread: boolean
-+createdAt: Instant
-}
-
-class NotificationsController {
-+send(req: SendNotificationRequest): void
-+broadcast(req: BroadcastRequest): void
-+list(userId: String, limit: int, continuation: String): List
-+markRead(userId: String, notificationId: String): void
-+markAllRead(userId: String): void
-+registerDevice(userId: String, req: DeviceRegistrationRequest): void
-+unregisterDevice(userId: String, tokenId: String): void
-}
-
-' Events
-class NotificationSent {
-+notificationId: String
-+userId: String
-+channels: List
-+sentAt: Instant
-}
-class DeliveryFailed {
-+deliveryId: String
-+userId: String
-+channel: String
-+errorCode: String
-+errorMessage: String
-+failedAt: Instant
-}
-class NotificationRead {
-+notificationId: String
-+userId: String
-+readAt: Instant
-}
-
-' Associations
-ChannelTemplates *-- InAppTemplate
-ChannelTemplates *-- PushTemplate
-ChannelTemplates *-- EmailTemplate
-ChannelTemplates *-- SmsTemplate
-TemplateRepository ..> NotificationTemplate
-TemplateEngine ..> ChannelTemplates
-TemplateEngine ..> RenderedBundle
-
-Recipient *-- DeviceToken
-RecipientResolver ..> DeviceTokenRepository
-RecipientResolver ..> PreferencesClient
-RecipientResolver ..> ProfileClient
-
-NotificationRepository ..> Notification
-DeliveryJob *-- DeliveryStatusDetail
-DeliveryOrchestrator ..> ChannelDispatcher
-DeliveryOrchestrator ..> DeliveryJobRepository
-DeliveryOrchestrator ..> EventPublisher
-DeliveryOrchestrator ..> RetryPolicy
-
-FcmPushProvider ..|> PushProvider
-ApnsPushProvider ..|> PushProvider
-AcsEmailProvider ..|> EmailProvider
-AcsSmsProvider ..|> SmsProvider
-ChannelDispatcher ..> PushProvider
-ChannelDispatcher ..> EmailProvider
-ChannelDispatcher ..> SmsProvider
-
-SendNotificationUseCase ..> TemplateRepository
-SendNotificationUseCase ..> TemplateEngine
-SendNotificationUseCase ..> RecipientResolver
-SendNotificationUseCase ..> RateLimiter
-SendNotificationUseCase ..> SuppressionPolicy
-SendNotificationUseCase ..> DeduplicationService
-SendNotificationUseCase ..> NotificationRepository
-SendNotificationUseCase ..> DeliveryOrchestrator
-SendNotificationUseCase ..> EventPublisher
-
-BroadcastNotificationUseCase ..> SendNotificationUseCase
-
-GetFeedUseCase ..> NotificationRepository
-MarkReadUseCase ..> NotificationRepository
-MarkReadUseCase ..> EventPublisher
-
-RegisterDeviceUseCase ..> DeviceTokenRepository
-UnregisterDeviceUseCase ..> DeviceTokenRepository
-
-RetryFailedDeliveriesUseCase ..> DeliveryJobRepository
-RetryFailedDeliveriesUseCase ..> DeliveryOrchestrator
-
-NotificationsController ..> SendNotificationUseCase
-NotificationsController ..> BroadcastNotificationUseCase
-NotificationsController ..> GetFeedUseCase
-NotificationsController ..> MarkReadUseCase
-NotificationsController ..> RegisterDeviceUseCase
-NotificationsController ..> UnregisterDeviceUseCase
-
-Notification *-- DeepLink
-InAppContent *-- DeepLink
-PushContent *-- DeepLink
-}
+NotificationConsumer --> NotificationService
+NotificationService --> DeliveryRepository
+NotificationService --> PushAdapter
+NotificationService --> EmailAdapter
+NotificationService --> TemplateRenderer
+DeliveryRepository ..> CosmosDB
+EmailAdapter ..> AzureCommunicationServices
+PushAdapter ..> PushProvider
+NotificationService --> OutboxEventPublisher : "NotificationSent / DeliveryFailed"
+OutboxEventPublisher ..> AzureServiceBusTopic
 
 @enduml

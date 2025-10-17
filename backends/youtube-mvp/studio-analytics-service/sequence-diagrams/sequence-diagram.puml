@@ -1,0 +1,46 @@
+@startuml
+title Studio Analytics Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Creator
+participant "AnalyticsController" as C
+participant "AnalyticsQueryService" as S
+participant "SynapseAdapter" as SYN
+participant "Synapse" as Synapse
+
+== Get Metrics ==
+Creator -> C: GET /studio/{channelId}/metrics?range=30d
+C -> S: getMetrics(channelId, range)
+S -> SYN: queryMetrics(channelId, range)
+SYN -> Synapse: query cubes
+Synapse --> SYN: MetricsDTO
+SYN --> S: MetricsDTO
+S --> Creator: 200 MetricsDTO
+
+== Get Demographics ==
+newpage Get Demographics
+Creator -> C: GET /studio/{channelId}/demographics?range=30d
+C -> S: getDemographics(channelId, range)
+S -> SYN: queryDemographics(channelId, range)
+SYN -> Synapse: query cubes
+Synapse --> SYN: DemographicsDTO
+S --> Creator: 200 DemographicsDTO
+
+@enduml

@@ -1,0 +1,50 @@
+@startuml
+title Search Indexer Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+participant "Azure Service Bus" as Bus
+participant "IndexConsumer" as Consumer
+participant "IndexerService" as S
+participant "CognitiveSearchAdapter" as CS
+participant "Azure Cognitive Search" as ACS
+
+== Upsert on VideoPublished ==
+Bus -> Consumer: VideoPublished{videoId, metadata, tags}
+Consumer -> S: transformAndUpsert(videoId, metadata, captions, tags)
+S -> CS: upsertDoc(doc)
+CS -> ACS: upsert
+ACS --> CS: ok
+
+== Remove on VideoRemoved ==
+newpage Remove on VideoRemoved
+Bus -> Consumer: VideoRemoved{videoId}
+Consumer -> S: remove(videoId)
+S -> CS: deleteDoc(videoId)
+CS -> ACS: delete
+ACS --> CS: ok
+
+== Update on CaptionAdded ==
+newpage Update on CaptionAdded
+Bus -> Consumer: CaptionAdded{videoId, lang, uri}
+Consumer -> S: transformAndUpsert(videoId, metadata+, captions+, tags)
+S -> CS: upsertDoc(doc)
+ACS --> CS: ok
+
+@enduml

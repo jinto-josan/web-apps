@@ -1,0 +1,45 @@
+@startuml
+title Localization Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Creator
+participant "LocalizationController" as C
+participant "LocalizationService" as S
+participant "LocalizationRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+
+== Get Localization ==
+Creator -> C: GET /videos/{id}/localization
+C -> S: get(videoId)
+S -> Repo: findByVideo(videoId)
+Repo --> S: Map<Locale, Meta>
+S --> Creator: 200
+
+== Update Localization ==
+newpage Update Localization
+Creator -> C: PATCH /videos/{id}/localization {locale, meta}
+C -> S: update(videoId, locale, meta)
+S -> Repo: save(videoId, locale, meta)
+Repo --> S: ok
+S -> Outbox: publish(VideoMetadataUpdated{videoId, locale})
+Outbox --> S: ack
+S --> Creator: 204
+
+@enduml

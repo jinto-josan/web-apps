@@ -1,0 +1,71 @@
+@startuml
+title Report Abuse Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "ReportAbuseService" {
+class ReportController {
++POST /reports
++GET /reports/{id}
++POST /reports/{id}/triage
++POST /reports/{id}/escalate
+}
+
+class ReportService {
++submit(report: ReportDTO): ReportId
++triage(reportId, decision): void
++escalate(reportId): void
+}
+
+class ReportRepository {
++save(report: Report)
++findById(id): Optional
++updateStatus(id, status)
+}
+
+class Report {
+-id
+-reporterId
+-targetId
+-type
+-reason
+-status
+-createdAt
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+ReportController --> ReportService
+ReportService --> ReportRepository
+ReportRepository ..> CosmosDB
+ReportService --> OutboxEventPublisher : "AbuseReportSubmitted / AbuseReportEscalated"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

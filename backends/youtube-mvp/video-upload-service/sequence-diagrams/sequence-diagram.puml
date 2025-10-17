@@ -1,0 +1,86 @@
+@startuml
+title Video Upload Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Client
+participant "UploadController" as C
+participant "UploadService" as S
+participant "UploadSessionRepository" as Repo
+participant "BlobStorageClient" as Blob
+participant "RedisUploadStateStore" as Redis
+participant "AzureSqlUploadStore" as SQL
+participant "OutboxEventPublisher" as Outbox
+
+== Create Resumable Session ==
+Client -> C: POST /videos/uploads/sessions {videoId, size, checksum}
+C -> S: createResumableSession(videoId, uploaderId, size, checksum)
+S -> Blob: reserveObjectPath(videoId)
+Blob --> S: blobPath
+S -> Repo: save(UploadSession{INITIATED, blobPath})
+S -> SQL: persistSession(session)
+SQL --> S: ok
+S -> Redis: set(sessionId, UploadState{[]})
+Redis --> S: ok
+S --> Client: 201 {sessionId, uploadUrl}
+
+== Upload Chunk ==
+newpage Upload Chunk
+Client -> C: POST /videos/uploads/{sessionId}/chunks {offset, bytes}
+C -> S: acceptChunk(sessionId, offset, bytes)
+S -> Redis: get(sessionId)
+Redis --> S: UploadState
+S -> Blob: append/put block(blobPath, offset, bytes)
+Blob --> S: eTag
+S -> Redis: set(sessionId, UploadState{+eTag})
+S -> SQL: updateProgress(sessionId, receivedBytes+)
+SQL --> S: ok
+S --> Client: 200 ChunkAck{receivedBytes}
+
+== Complete Upload (Integrity Check) ==
+newpage Complete Upload
+Client -> C: POST /videos/uploads/{sessionId}/complete
+C -> S: complete(sessionId)
+S -> Redis: get(sessionId)
+Redis --> S: UploadState{partETags}
+S -> Blob: composeParts(blobPath, partETags)
+Blob --> S: ok
+S -> Blob: verifyChecksum(blobPath, checksum)
+Blob --> S: true
+alt checksum matches
+S -> Repo: markCompleted(sessionId, blobPath)
+S -> SQL: updateStatus(sessionId, COMPLETED)
+S -> Redis: delete(sessionId)
+S -> Outbox: publish(VideoUploaded{videoId, blobPath})
+Outbox --> S: ack
+S --> Client: 200 CompletionResult{status=COMPLETED}
+else checksum mismatch
+S -> SQL: updateStatus(sessionId, FAILED)
+S --> Client: 422 CompletionResult{status=FAILED}
+end
+
+== Abort Upload ==
+newpage Abort Upload
+Client -> C: POST /videos/uploads/{sessionId}/abort
+C -> S: abort(sessionId)
+S -> SQL: updateStatus(sessionId, ABORTED)
+S -> Redis: delete(sessionId)
+S --> Client: 204
+
+@enduml

@@ -1,0 +1,47 @@
+@startuml
+title Moderation Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Moderator
+participant "ModerationController" as C
+participant "ModerationService" as S
+participant "ModerationRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+
+== Moderate Comment ==
+Moderator -> C: POST /comments/{id}/moderate {action=REMOVE}
+C -> S: moderateComment(commentId, action)
+S -> Repo: updateCommentStatus(commentId, REMOVED)
+Repo --> S: ok
+S -> Outbox: publish(CommentModerated{commentId, action})
+Outbox --> S: ack
+S --> Moderator: 204
+
+== Record Channel Strike ==
+newpage Record Channel Strike
+Moderator -> C: POST /channels/{id}/strikes {reason}
+C -> S: recordChannelStrike(channelId, reason)
+S -> Repo: saveStrike(channelId, Strike)
+Repo --> S: ok
+S -> Outbox: publish(ChannelStrikeRecorded{channelId})
+Outbox --> S: ack
+S --> Moderator: 201
+
+@enduml

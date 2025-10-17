@@ -1,0 +1,108 @@
+@startuml
+title Video Catalog Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "VideoCatalogService" {
+class VideoController {
++GET /videos/{id}
++GET /videos
++PATCH /videos/{id}/metadata
++PATCH /videos/{id}/privacy
++PATCH /videos/{id}/tags
++POST /videos/{id}/publish
++POST /videos/{id}/unlist
++DELETE /videos/{id}
+}
+
+class CatalogService {
++applyTranscode(videoId, manifests, thumbs)
++updateMetadata(videoId, dto)
++updatePrivacy(videoId, privacy)
++updateTags(videoId, tags)
++publish(videoId)
++unlist(videoId)
++remove(videoId)
++getVideo(id): VideoDTO
++list(query): Page
+}
+
+class VideoRepository {
++findById(id): Optional
++save(video)
++updateAssets(id, manifests, thumbs)
++updateStatus(id, status)
++updatePrivacy(id, privacy)
++updateTags(id, tags)
+}
+
+class Video {
+-id: UUID
+-ownerId: UUID
+-title: String
+-description: String
+-status: Status
+-privacy: String
+-tags: List
+-categories: List
+-geofencing: List
+-manifests: Map<String, String>
+-thumbnails: List
+-createdAt: Instant
+-publishedAt: Instant
+}
+
+enum Status {
+DRAFT
+PROCESSING
+PUBLISHED
+UNLISTED
+REMOVED
+FAILED
+}
+
+class TranscodeCompletedConsumer {
++onTranscodeCompleted(event)
+}
+class ThumbnailGeneratedConsumer {
++onThumbnailGenerated(event)
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+VideoController --> CatalogService
+CatalogService --> VideoRepository
+CatalogService --> OutboxEventPublisher : "VideoPublished / VideoUnlisted / VideoRemoved"
+VideoRepository ..> CosmosDB
+TranscodeCompletedConsumer --> CatalogService : applyTranscode
+ThumbnailGeneratedConsumer --> CatalogService : applyTranscode
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

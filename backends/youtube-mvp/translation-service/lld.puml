@@ -1,0 +1,72 @@
+@startuml
+title Translation Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "TranslationService" {
+class TranslationController {
++POST /translate/videos/{id}
++POST /translate/review/{jobId}/approve
+}
+
+class TranslationService {
++requestTranslation(videoId, srcLocale, targetLocales): JobId
++approve(jobId): void
+}
+
+class TranslationJobRepository {
++save(job: TranslationJob)
++updateStatus(jobId, status)
++get(jobId): TranslationJob
+}
+
+class TranslationJob {
+-id
+-videoId
+-srcLocale
+-targetLocales
+-status
+}
+interface AzureTranslatorAdapter {
++translate(text, targetLocale): String
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureTranslator
+class AzureServiceBusTopic
+}
+
+TranslationController --> TranslationService
+TranslationService --> TranslationJobRepository
+TranslationService --> AzureTranslatorAdapter
+TranslationJobRepository ..> CosmosDB
+AzureTranslatorAdapter ..> AzureTranslator
+TranslationService --> OutboxEventPublisher : "VideoMetadataTranslated"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

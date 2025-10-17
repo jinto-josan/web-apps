@@ -1,0 +1,94 @@
+@startuml
+title Video Transcode Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "VideoTranscodeService" {
+class VideoUploadedConsumer {
++onVideoUploaded(event)
+}
+
+class TranscodeOrchestrator {
++startTranscode(videoId, inputBlob): JobId
++monitorJob(jobId): JobStatus
++packageRenditions(assetId): PackagingResult
++prepareDRM(assetId): DRMResult
++emitResults(videoId, assetId, thumbnails, manifests): void
+}
+
+interface AMSAdapter {
++submitEncodingJob(inputBlob): JobId
++getJobStatus(jobId): JobStatus
++getAssetId(jobId): String
+}
+
+interface PackagerAdapter {
++packageHlsDash(assetId): PackagingResult
+}
+
+class ThumbnailService {
++generateThumbnails(assetId): List
+}
+
+class Thumbnail {
+-url: String
+-timeSec: int
+}
+class PackagingResult {
+-hlsUrl: String
+-dashUrl: String
+}
+class DRMResult {
+-keys: Map<String, String>
+-licenses: Map<String, String>
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+
+enum JobStatus {
+QUEUED
+PROCESSING
+FINISHED
+FAILED
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class AzureMediaServices
+class ShakaPackager
+class BlobStorage
+class AzureServiceBusTopic
+}
+
+VideoUploadedConsumer --> TranscodeOrchestrator
+TranscodeOrchestrator --> AMSAdapter
+TranscodeOrchestrator --> PackagerAdapter
+TranscodeOrchestrator --> ThumbnailService
+AMSAdapter ..> AzureMediaServices
+PackagerAdapter ..> ShakaPackager
+ThumbnailService ..> BlobStorage
+TranscodeOrchestrator --> OutboxEventPublisher : "TranscodeCompleted / ThumbnailGenerated"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

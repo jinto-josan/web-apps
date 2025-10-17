@@ -1,142 +1,258 @@
-# Identity Auth Service - Sequence Diagrams
+# Identity-Auth Service - Sequence Diagrams
 
-This directory contains PlantUML sequence diagrams documenting the authentication flows in the Identity Auth Service.
+This document provides comprehensive documentation for all sequence diagrams in the Identity-Auth service, detailing the authentication flows and interactions between various components.
 
-## 📊 Available Diagrams
+## Overview
 
-### 1. Exchange AAD Token Flow
-**File**: `exchange-token-sequence.puml`  
-**Description**: Shows how Azure AD ID tokens are exchanged for platform-specific access and refresh tokens.
+The Identity-Auth service implements multiple authentication flows to support different client types and security requirements. All diagrams are defined in `sequence-diagram.puml` and can be rendered using PlantUML.
+
+## Sequence Diagrams
+
+### 1. Exchange Entra/B2C id_token for Platform Tokens
+
+**Purpose**: Exchange Azure AD B2C identity tokens for platform-specific JWT tokens
+
+**Flow**:
+- Client sends Azure AD B2C id_token to the platform
+- Service verifies the token using OIDC verification
+- User is created or updated based on token claims
+- Platform issues its own JWT tokens for the user
 
 **Key Components**:
-- Azure AD OIDC verification
-- User lookup/linking by AAD subject or email
-- Session creation
-- JWT token generation with Key Vault signing
-- Refresh token storage
+- `AuthController`: Entry point for token exchange
+- `ExchangeTokenUseCase`: Business logic for token exchange
+- `OidcVerifier`: Validates Azure AD B2C tokens
+- `TokenService`: Issues platform JWT tokens
+- `KeyVaultSigner`: Signs tokens using Azure Key Vault
 
-### 2. Local Login Flow
-**File**: `login-sequence.puml`  
-**Description**: Traditional email/password authentication flow.
+**Security Features**:
+- JWT signature verification using JWKS
+- Session tracking with Redis cache
+- Token expiration management
+
+### 2. Local Login
+
+**Purpose**: Authenticate users with email/password credentials
+
+**Flow**:
+- Client provides email and password
+- Service validates credentials against stored hash
+- Creates session and issues JWT tokens
+- Stores refresh token for future use
 
 **Key Components**:
-- Email/password validation
-- Password hashing verification with Key Vault pepper
-- Session creation
-- Token generation
+- `LoginUseCase`: Handles login business logic
+- `PasswordHasher`: Verifies password hashes
+- `SessionRepository`: Manages user sessions
+- `RefreshTokenRepository`: Stores refresh tokens
+
+**Security Features**:
+- Password hashing with pepper from Key Vault
+- Rate limiting protection
+- Session-based authentication
 
 ### 3. Refresh Token Flow
-**File**: `refresh-token-sequence.puml`  
-**Description**: Token refresh with rotation and reuse detection.
+
+**Purpose**: Obtain new access tokens using refresh tokens
+
+**Flow**:
+- Client sends refresh token
+- Service validates token and checks for reuse
+- Issues new token pair if valid
+- Implements token rotation for security
 
 **Key Components**:
-- Refresh token validation
-- Token rotation (new refresh token replaces old)
+- `RefreshUseCase`: Manages refresh token logic
+- `RefreshTokenRepository`: Stores and validates refresh tokens
+- `TokenService`: Issues new tokens
+
+**Security Features**:
+- Token rotation (new refresh token issued)
 - Reuse detection and chain revocation
-- New access token generation
+- Expiration validation
 
 ### 4. Device Code Flow
-**File**: `device-flow-sequence.puml`  
-**Description**: OAuth 2.0 Device Authorization Grant flow for TV/limited input devices.
+
+**Purpose**: Enable authentication on devices with limited input capabilities (e.g., Smart TVs)
+
+**Flow**:
+1. **Start**: Device requests device code and user code
+2. **Activate**: User enters user code in browser to authorize device
+3. **Poll**: Device polls for authorization status
 
 **Key Components**:
-- Device code generation and storage in Redis
-- User authorization via browser
-- Polling mechanism for token retrieval
-- Cleanup of device codes
+- `StartDeviceFlowUseCase`: Initiates device flow
+- `CompleteDeviceFlowUseCase`: Handles user authorization
+- `DevicePollUseCase`: Manages polling for completion
+- `Redis`: Stores device flow state
 
-### 5. MFA Setup Flow
-**File**: `mfa-setup-sequence.puml`  
-**Description**: Multi-factor authentication setup using TOTP.
+**Security Features**:
+- Time-limited device codes (15 minutes)
+- User authorization required
+- Automatic cleanup after completion
 
-**Key Components**:
-- Secret generation and encryption
-- QR code/URI generation
-- Secure storage in Key Vault
+### 5. Local Sign-Up
 
-### 6. MFA Verification Flow
-**File**: `mfa-verify-sequence.puml`  
-**Description**: MFA code verification and user enablement.
+**Purpose**: Register new users with email verification
 
-**Key Components**:
-- TOTP code validation
-- Secret decryption from Key Vault
-- User MFA status update
-
-### 7. Logout Flow
-**File**: `logout-sequence.puml`  
-**Description**: User logout and session cleanup.
+**Flow**:
+- Client provides registration details
+- Service validates input and checks for existing users
+- Creates user account in PENDING_VERIFICATION state
+- Sends verification email
 
 **Key Components**:
-- Session revocation
+- `SignUpUseCase`: Handles registration logic
+- `CaptchaVerifier`: Prevents automated registrations
+- `SignUpRateLimiter`: Rate limiting protection
+- `EmailSender`: Sends verification emails
+
+**Security Features**:
+- CAPTCHA verification
+- Rate limiting by email/IP
+- Email verification requirement
+- Password policy validation
+
+### 6. Verify Email
+
+**Purpose**: Complete email verification process
+
+**Flow**:
+- User clicks verification link with token
+- Service validates token and activates account
+- Issues authentication tokens upon successful verification
+
+**Key Components**:
+- `VerifyEmailUseCase`: Handles verification logic
+- `VerificationTokenRepository`: Manages verification tokens
+- `TokenService`: Issues tokens after verification
+
+**Security Features**:
+- Token-based verification
+- One-time use tokens
+- Automatic account activation
+
+### 7. Resend Verification
+
+**Purpose**: Allow users to request new verification emails
+
+**Flow**:
+- Client requests resend for pending verification
+- Service validates request and rate limits
+- Generates new verification token
+- Sends new verification email
+
+**Key Components**:
+- `ResendVerificationUseCase`: Manages resend logic
+- `SignUpRateLimiter`: Prevents abuse
+- `EmailSender`: Sends new verification email
+
+**Security Features**:
+- Rate limiting protection
+- Token revocation and regeneration
+- Status validation
+
+### 8. MFA Setup and Verify
+
+**Purpose**: Enable and verify Multi-Factor Authentication using TOTP
+
+**Flow**:
+1. **Setup**: Generate TOTP secret and QR code
+2. **Verify**: Validate TOTP code to enable MFA
+
+**Key Components**:
+- `SetupMfaUseCase`: Generates MFA secrets
+- `VerifyMfaUseCase`: Validates MFA codes
+- `TotpService`: Handles TOTP operations
+- `MfaRepository`: Stores encrypted MFA secrets
+
+**Security Features**:
+- Encrypted secret storage in Key Vault
+- TOTP-based authentication
+- Secure secret generation
+
+### 9. Logout
+
+**Purpose**: Securely terminate user sessions
+
+**Flow**:
+- Client requests logout
+- Service revokes session and refresh tokens
+- Clears Redis cache entries
+
+**Key Components**:
+- `LogoutUseCase`: Handles logout logic
+- `SessionRepository`: Revokes sessions
+- `RefreshTokenRepository`: Revokes refresh tokens
+- `Redis`: Clears session cache
+
+**Security Features**:
+- Complete session termination
 - Refresh token chain revocation
-- Redis session cleanup
+- Cache cleanup
 
-### 8. JWKS Endpoint
-**File**: `jwks-sequence.puml`  
-**Description**: JSON Web Key Set endpoint for JWT verification.
+### 10. JWKS Endpoint
+
+**Purpose**: Provide public keys for JWT verification
+
+**Flow**:
+- Client requests JWKS (JSON Web Key Set)
+- Service retrieves public keys from Key Vault
+- Returns JWKS in standard format
 
 **Key Components**:
-- Public key retrieval from Key Vault
-- JWKS format generation
-- Public endpoint for token verification
+- `AuthController`: Exposes JWKS endpoint
+- `KeyVaultSigner`: Retrieves keys from Key Vault
+- `Azure Key Vault`: Stores signing keys
 
-## 🛠️ Generating Diagrams
+**Security Features**:
+- Public key distribution
+- Standard JWKS format
+- Key rotation support
 
-### Prerequisites
-- Java 17 or higher
-- PlantUML JAR file
-- Graphviz (for rendering)
+## Technical Architecture
 
-### Commands
+### Key Technologies
+- **Azure AD B2C**: External identity provider
+- **Azure Key Vault**: Secure key storage and signing
+- **Azure SQL**: Persistent data storage
+- **Redis**: Caching and session management
+- **JWT**: Token-based authentication
+- **TOTP**: Multi-factor authentication
+
+### Security Considerations
+- All secrets encrypted in Key Vault
+- Token rotation for refresh tokens
+- Rate limiting on sensitive endpoints
+- CAPTCHA protection for registration
+- Session-based security with JTI tracking
+- MFA support for enhanced security
+
+### Error Handling
+- Comprehensive error responses
+- Proper HTTP status codes
+- Security-focused error messages
+- Audit logging for security events
+
+## Usage
+
+To render these diagrams:
+
+1. Install PlantUML
+2. Use the `sequence-diagram.puml` file
+3. Generate images or view in PlantUML-compatible tools
+
 ```bash
-# Generate all diagrams
-java -jar plantuml.jar -tpng *.puml
+# Generate PNG images
+plantuml sequence-diagram.puml
 
-# Generate specific diagram
-java -jar plantuml.jar -tpng exchange-token-sequence.puml
-
-# Generate SVG format
-java -jar plantuml.jar -tsvg *.puml
-
-# Validate syntax only
-java -jar plantuml.jar -checkonly *.puml
+# Generate SVG images
+plantuml -tsvg sequence-diagram.puml
 ```
 
-## 📋 Diagram Features
+## Maintenance
 
-- **Font Consistency**: All diagrams use Helvetica font
-- **Auto-numbering**: Sequence steps are automatically numbered
-- **Clear Participants**: External services, repositories, and use cases clearly labeled
-- **Error Handling**: Shows both success and error flows
-- **Security Focus**: Highlights security-critical operations like token signing and secret management
-
-## 🔐 Security Considerations
-
-The diagrams highlight several security features:
-
-1. **Token Rotation**: Refresh tokens are rotated on each use
-2. **Reuse Detection**: Token reuse triggers chain revocation
-3. **Secure Storage**: Secrets encrypted in Azure Key Vault
-4. **Session Management**: Proper session lifecycle management
-5. **MFA Integration**: Multi-factor authentication flows
-6. **OIDC Compliance**: Standards-compliant OAuth/OIDC flows
-
-## 📚 Related Documentation
-
-- **LLD Diagram**: `lld.puml` - Low-level design class diagram
-- **Database Schema**: `src/main/resources/db/migration/` - Flyway migrations
-- **API Documentation**: REST API specifications
-- **Architecture**: Clean Architecture folder structure
-
-## 🔄 Updates
-
-When updating these diagrams:
-
-1. **Maintain Consistency**: Keep participant names consistent across diagrams
-2. **Update Numbers**: Ensure step numbering reflects current implementation
-3. **Security Review**: Verify security flows are accurately represented
-4. **Test Generation**: Always test diagram generation after changes
-5. **Documentation**: Update this README if adding new diagrams
-
-These sequence diagrams provide a comprehensive view of the authentication flows and serve as living documentation for the Identity Auth Service implementation.
+- Update diagrams when authentication flows change
+- Ensure all security considerations are documented
+- Keep diagrams synchronized with implementation
+- Review and update error handling scenarios

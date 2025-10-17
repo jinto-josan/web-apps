@@ -1,0 +1,62 @@
+@startuml
+title Localization Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "LocalizationService" {
+class LocalizationController {
++GET /videos/{id}/localization
++PATCH /videos/{id}/localization
+}
+
+class LocalizationService {
++get(videoId): Map<Locale, LocalizedMeta>
++update(videoId, locale, meta): void
+}
+
+class LocalizationRepository {
++findByVideo(videoId): Map<Locale, LocalizedMeta>
++save(videoId, locale, meta)
+}
+
+class LocalizedMeta {
+-title: String
+-description: String
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+LocalizationController --> LocalizationService
+LocalizationService --> LocalizationRepository
+LocalizationRepository ..> CosmosDB
+LocalizationService --> OutboxEventPublisher : "VideoMetadataUpdated(locale)"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

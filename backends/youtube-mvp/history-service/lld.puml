@@ -1,0 +1,73 @@
+@startuml
+title History Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "HistoryService" {
+class HistoryController {
++POST /users/{id}/history
++GET /users/{id}/history
++POST /users/{id}/resume
+}
+
+class HistoryService {
++recordWatch(userId, videoId, seconds): void
++getHistory(userId, page): Page
++updateResumePoint(userId, videoId, seconds): void
+}
+
+class HistoryRepository {
++save(event: WatchHistoryEvent)
++findByUser(userId, page): Page
++updateResumePoint(userId, videoId, seconds)
+}
+
+class WatchHistoryEvent {
+-userId: UUID
+-videoId: UUID
+-watchedSeconds: int
+-at: Instant
+}
+
+class HistoryItem {
+-videoId: UUID
+-lastWatchedAt: Instant
+-resumeSeconds: int
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+HistoryController --> HistoryService
+HistoryService --> HistoryRepository
+HistoryService --> OutboxEventPublisher : "WatchHistoryUpdated"
+HistoryRepository ..> CosmosDB
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

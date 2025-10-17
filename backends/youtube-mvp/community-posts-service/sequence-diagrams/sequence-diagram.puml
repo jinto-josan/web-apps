@@ -1,0 +1,55 @@
+@startuml
+title Community Posts Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor Creator
+participant "PostsController" as C
+participant "PostsService" as S
+participant "PostRepository" as PostRepo
+participant "PollRepository" as PollRepo
+participant "OutboxEventPublisher" as Outbox
+
+== Publish Post ==
+Creator -> C: POST /channels/{id}/posts {content}
+C -> S: publishPost(channelId, authorId, content)
+S -> PostRepo: save(Post)
+PostRepo --> S: Post
+S -> Outbox: publish(CommunityPostPublished{channelId, postId})
+Outbox --> S: ack
+S --> Creator: 201 PostDTO
+
+== Create Poll ==
+newpage Create Poll
+Creator -> C: POST /channels/{id}/polls {question, options}
+C -> S: createPoll(channelId, question, options)
+S -> PollRepo: save(Poll)
+PollRepo --> S: Poll
+S --> Creator: 201 PollDTO
+
+== Vote ==
+newpage Vote
+actor Viewer
+Viewer -> C: POST /channels/{id}/polls/{pollId}/vote {option}
+C -> S: vote(pollId, userId, option)
+S -> PollRepo: vote(pollId, userId, option)
+PollRepo --> S: ok
+S --> Viewer: 204
+
+@enduml

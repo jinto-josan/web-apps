@@ -1,0 +1,66 @@
+@startuml
+title Subscription Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor User
+participant "SubscriptionController" as C
+participant "SubscriptionService" as S
+participant "SubscriptionRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+participant "Azure Service Bus" as Bus
+
+== Subscribe ==
+User -> C: POST /channels/{id}/subscribe
+C -> S: subscribe(channelId, userId)
+S -> Repo: add(channelId, userId)
+Repo --> S: ok
+S -> Outbox: publish(SubscriptionAdded{channelId, userId})
+Outbox --> S: ack
+S --> User: 204
+
+== Unsubscribe ==
+newpage Unsubscribe
+User -> C: DELETE /channels/{id}/subscribe
+C -> S: unsubscribe(channelId, userId)
+S -> Repo: remove(channelId, userId)
+Repo --> S: ok
+S -> Outbox: publish(SubscriptionRemoved{channelId, userId})
+Outbox --> S: ack
+S --> User: 204
+
+== Update Notification Preferences ==
+newpage Update Notification Preferences
+User -> C: PATCH /channels/{id}/notifications {prefs}
+C -> S: updateNotificationPrefs(userId, channelId, prefs)
+S -> Repo: savePrefs(userId, channelId, prefs)
+Repo --> S: ok
+S --> User: 200
+
+== Notify on VideoPublished ==
+newpage Notify on VideoPublished
+Bus -> S: VideoPublished{videoId, channelId}
+S -> Repo: findByChannel(channelId)
+Repo --> S: [subscriberIds]
+loop for each subscriber
+S -> Outbox: publish(NewVideoNotificationRequested{subscriberId, videoId})
+Outbox --> S: ack
+end
+
+@enduml

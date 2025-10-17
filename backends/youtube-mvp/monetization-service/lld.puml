@@ -1,0 +1,78 @@
+@startuml
+title Monetization Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "MonetizationService" {
+class MonetizationController {
++GET /channels/{id}/monetization
++PATCH /channels/{id}/monetization
++POST /channels/{id}/contracts
+}
+
+class MonetizationService {
++getSettings(channelId): MonetizationSettingsDTO
++updateSettings(channelId, dto): void
++addContract(channelId, contract): void
+}
+
+class ContractsRepository {
++save(contract)
++findByChannel(channelId): List
+}
+
+class SettingsRepository {
++get(channelId): MonetizationSettings
++save(channelId, settings)
+}
+
+class MonetizationSettings {
+-enabled: boolean
+-revshare: double
+-adsEnabled: boolean
+}
+class Contract {
+-id: UUID
+-channelId: UUID
+-terms: String
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class AzureSQL
+class CosmosDB
+class AzureServiceBusTopic
+}
+
+MonetizationController --> MonetizationService
+MonetizationService --> SettingsRepository
+MonetizationService --> ContractsRepository
+SettingsRepository ..> CosmosDB
+ContractsRepository ..> AzureSQL
+MonetizationService --> OutboxEventPublisher : "MonetizationUpdated"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

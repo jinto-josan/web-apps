@@ -1,0 +1,46 @@
+@startuml
+title DRM License Service - Sequence: Issue License
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+actor PlaybackService
+participant "LicenseController" as C
+participant "LicenseService" as S
+participant "KeyMetadataRepository" as Repo
+participant "KeyVaultAdapter" as KV
+participant "AzureSQL" as SQL
+participant "Azure Key Vault" as AKV
+
+PlaybackService -> C: POST /drm/license {videoId, userId, device, request}
+C -> S: issueLicense(videoId, userId, device, request)
+S -> Repo: getKeysForAsset(videoId)
+Repo -> SQL: SELECT keys
+SQL --> Repo: KeyMetadata
+Repo --> S: KeyMetadata{contentKeyId}
+S -> KV: unwrap(contentKeyId)
+KV -> AKV: unwrap key op
+AKV --> KV: key bytes
+KV --> S: key bytes
+S -> KV: sign(response)
+KV -> AKV: sign
+AKV --> KV: signature
+KV --> S: signature
+S --> PlaybackService: 200 LicenseResponse
+
+@enduml

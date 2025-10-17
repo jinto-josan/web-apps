@@ -1,0 +1,409 @@
+@startuml
+title Identity-Auth - Exchange Entra/B2C id_token for platform tokens (Updated)
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "ExchangeTokenUseCase" as UC
+participant "OidcVerifier" as OIDC
+participant "Azure AD B2C (OIDC)" as B2C
+database "AzureSQL" as SQL
+participant "Redis (jti cache)" as Redis
+participant "UserRepository" as UserRepo
+participant "SessionRepository" as SessionRepo
+participant "TokenService" as Tokens
+participant "KeyVaultSigner" as Signer
+participant "Azure Key Vault" as KV
+
+Client -> Controller: POST /auth/exchange { idToken }
+Controller -> UC: execute(idToken, clientInfo)
+UC -> OIDC: verifyIdToken(idToken)
+OIDC -> B2C: GET jwks_uri (from openid-config)
+B2C --> OIDC: JWKS
+OIDC -> OIDC: Validate signature & claims
+OIDC --> UC: DecodedToken(sub, email, name)
+alt User exists by aadSubject or email
+UC -> UserRepo: findByEmail(normalize(email))
+UserRepo --> UC: Optional
+alt found
+UC -> UserRepo: update(status if needed)
+UserRepo --> UC: User
+else not found
+UC -> UserRepo: save(new User ACTIVE, emailVerified=true)
+UserRepo --> UC: User
+end
+end
+UC -> SessionRepo: save(new Session with jti, ip, ua)
+UC -> Tokens: issueFor(User, Session)
+Tokens -> Signer: signJwt(claims)
+Signer -> KV: Sign
+KV --> Signer: signature
+Tokens -> Redis: SET session:jti:{jti} TTL=15m
+Tokens --> UC: TokenPair
+UC --> Controller: TokenPair
+Controller --> Client: 200 { accessToken, refreshToken, expiresIn }
+@enduml
+
+@startuml Identity-Auth - Local Login
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "LoginUseCase" as UC
+participant "UserRepository" as UserRepo
+participant "PasswordHasher" as Hasher
+participant "Azure Key Vault" as KV
+participant "SessionRepository" as SessionRepo
+participant "TokenService" as Tokens
+participant "KeyVaultSigner" as Signer
+participant "RefreshTokenRepository" as RefreshRepo
+database "AzureSQL" as SQL
+participant "Redis" as Redis
+
+Client -> Controller: POST /auth/login { email, password }
+Controller -> UC: execute(email, password, clientInfo)
+UC -> UserRepo: findByEmail(normalize(email))
+UserRepo --> UC: Optional
+alt found and status == ACTIVE
+UC -> Hasher: verify(password, user.passwordHash)
+Hasher -> KV: get pepper
+KV --> Hasher: pepper
+Hasher --> UC: boolean
+alt valid
+UC -> SessionRepo: save(new Session with jti)
+UC -> Tokens: issueFor(User, Session)
+Tokens -> Signer: signJwt
+Signer --> Tokens: signed JWT
+Tokens -> RefreshRepo: saveNew(sessionId, sha256(refreshToken), exp)
+Tokens -> Redis: SET session:jti:{jti} TTL=15m
+Tokens --> UC: TokenPair
+UC --> Controller: TokenPair
+Controller --> Client: 200
+else invalid
+UC --> Controller: 401
+Controller --> Client: 401
+end
+else not found or not ACTIVE
+UC --> Controller: 401
+Controller --> Client: 401
+end
+@enduml
+
+@startuml Identity-Auth - Refresh Token
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "RefreshUseCase" as UC
+participant "RefreshTokenRepository" as Repo
+participant "TokenService" as Tokens
+participant "KeyVaultSigner" as Signer
+database "AzureSQL" as SQL
+
+Client -> Controller: POST /auth/refresh { refreshToken }
+Controller -> UC: execute(refreshToken, clientInfo)
+UC -> Repo: findByHash(sha256(refreshToken))
+Repo --> UC: Optional
+alt valid, current, not revoked/expired
+UC -> Tokens: refresh(refreshToken)
+Tokens -> Signer: signJwt(new claims)
+Signer --> Tokens: signed JWT
+Tokens -> Repo: saveNew(sessionId, sha256(newRefreshToken), exp)
+Tokens -> Repo: markReplaced(oldId, newId)
+Tokens --> UC: TokenPair
+UC --> Controller: TokenPair
+Controller --> Client: 200
+else reused/invalid
+UC -> Repo: revokeChain(startingId, "reuse detected")
+UC --> Controller: 409
+Controller --> Client: 409
+end
+@enduml
+
+@startuml Identity-Auth - Device Code Flow
+autonumber
+actor "TV Device" as TV
+actor "Browser (User)" as Browser
+participant "AuthController" as Controller
+participant "StartDeviceFlowUseCase" as StartUC
+participant "CompleteDeviceFlowUseCase" as ActivateUC
+participant "DevicePollUseCase" as PollUC
+participant "Redis\n(DeviceFlowRepository)" as Redis
+participant "UserRepository" as UserRepo
+participant "SessionRepository" as SessionRepo
+participant "TokenService" as Tokens
+participant "KeyVaultSigner" as Signer
+participant "Azure Key Vault" as KV
+database "AzureSQL" as SQL
+
+group Start
+TV -> Controller: POST /auth/device/start { clientId, scope }
+Controller -> StartUC: start(req)
+StartUC -> Redis: PUT deviceCode with status=PENDING TTL 900s\nintervalSeconds=5
+StartUC --> Controller: { deviceCode, userCode, verificationUri, interval, expiresIn }
+Controller --> TV: 200
+end
+
+group Activate
+Browser -> Controller: POST /auth/device/activate { userCode }\n(bearer user JWT)
+Controller -> ActivateUC: activate(userCode, userId)
+ActivateUC -> Redis: GET by userCode
+alt found and status == PENDING
+ActivateUC -> Redis: AUTHORIZE deviceCode with userId\nstatus=AUTHORIZED
+ActivateUC --> Controller: 204
+Controller --> Browser: 204
+else not found/expired
+ActivateUC --> Controller: 404
+Controller --> Browser: 404
+end
+end
+
+group Poll
+loop until authorized
+TV -> Controller: POST /auth/device/poll { deviceCode }
+Controller -> PollUC: poll(deviceCode)
+PollUC -> Redis: GET deviceCode
+alt status == AUTHORIZED
+PollUC -> UserRepo: findById(authorizedUserId)
+UserRepo --> PollUC: User
+PollUC -> SessionRepo: save(new Session)
+PollUC -> Tokens: issueFor(User, Session)
+Tokens -> Signer: signJwt
+Signer -> KV: Sign
+KV --> Tokens: signature
+Tokens -> SQL: saveNew refresh token (hashed)
+PollUC -> Redis: DELETE deviceCode
+Tokens --> PollUC: TokenPair
+PollUC --> Controller: TokenPair
+Controller --> TV: 200
+break
+else PENDING
+Controller --> TV: 428 Pending
+end
+end
+end
+@enduml
+
+@startuml Identity-Auth - Local Sign-Up
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "SignUpUseCase" as UC
+participant "CaptchaVerifier" as Captcha
+participant "Redis\n(rate limit)" as Redis
+participant "SignUpRateLimiter" as RateLimiter
+participant "PasswordPolicyValidator" as Policy
+participant "PasswordHasher" as Hasher
+participant "Azure Key Vault" as KV
+participant "UserRepository" as UserRepo
+participant "VerificationTokenRepository" as TokenRepo
+participant "TokenGenerator" as Gen
+participant "HashService" as Hash
+participant "TemplateRepository" as Templates
+participant "EmailSender" as Email
+participant "EventPublisher" as Events
+
+Client -> Controller: POST /auth/signup { email, password, displayName, captchaToken, termsVersion }
+Controller -> UC: execute(req, clientIp)
+UC -> Captcha: verify(captchaToken, clientIp)
+alt captcha ok
+UC -> RateLimiter: check(email/ip)
+RateLimiter -> Redis: INCR+TTL
+RateLimiter --> UC: ok
+UC -> Policy: validate(password)
+UC -> UserRepo: findByEmail(normalize(email))
+UserRepo --> UC: Optional
+alt not found
+UC -> Hasher: hash(password)
+Hasher -> KV: get pepper
+KV --> Hasher: pepper
+Hasher --> UC: hash
+UC -> UserRepo: save(new User status=PENDING_VERIFICATION,\nemailVerified=false, termsVersion, termsAcceptedAt=now)
+UserRepo --> UC: User
+UC -> Gen: randomUrlSafe(32)
+Gen --> UC: rawToken
+UC -> Hash: sha256(rawToken)
+Hash --> UC: tokenHash
+UC -> TokenRepo: create(new EmailVerificationToken tokenHash, expiresAt=now+24h, state=PENDING)
+UC -> Templates: get("email_verification", locale)
+Templates --> UC: EmailTemplate
+UC -> Email: send(to=email, subject, html/text with verification link)
+UC -> Events: publish(UserSignedUp)
+UC --> Controller: 202 Accepted
+Controller --> Client: 202
+else exists
+alt status == PENDING_VERIFICATION
+UC --> Controller: 202 pending can resend
+Controller --> Client: 202
+else ACTIVE/LOCKED/DISABLED
+UC --> Controller: 409 Conflict
+Controller --> Client: 409
+end
+end
+else captcha failed
+UC --> Controller: 400
+Controller --> Client: 400
+end
+@enduml
+
+@startuml Identity-Auth - Verify Email
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "VerifyEmailUseCase" as UC
+participant "HashService" as Hash
+participant "VerificationTokenRepository" as TokenRepo
+participant "UserRepository" as UserRepo
+participant "SessionRepository" as SessionRepo
+participant "TokenService" as Tokens
+participant "EventPublisher" as Events
+
+Client -> Controller: POST /auth/signup/verify { token }
+Controller -> UC: execute(token, clientInfo)
+UC -> Hash: sha256(token)
+Hash --> UC: tokenHash
+UC -> TokenRepo: findByHash(tokenHash)
+TokenRepo --> UC: Optional
+alt found and state == PENDING and not expired
+UC -> TokenRepo: markConsumed(tokenId)
+UC -> UserRepo: findById(t.userId)
+UserRepo --> UC: User
+UC -> UserRepo: update(emailVerified=true, status=ACTIVE)
+UC -> SessionRepo: save(new Session)
+UC -> Tokens: issueFor(User, Session)
+Tokens --> UC: TokenPair
+UC -> Events: publish(UserEmailVerified)
+UC --> Controller: TokenPair
+Controller --> Client: 200
+else invalid/expired/consumed/revoked
+UC --> Controller: 400
+Controller --> Client: 400
+end
+@enduml
+
+@startuml Identity-Auth - Resend Verification
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "ResendVerificationUseCase" as UC
+participant "Redis\n(rate limit)" as Redis
+participant "SignUpRateLimiter" as RateLimiter
+participant "UserRepository" as UserRepo
+participant "VerificationTokenRepository" as TokenRepo
+participant "TokenGenerator" as Gen
+participant "HashService" as Hash
+participant "TemplateRepository" as Templates
+participant "EmailSender" as Email
+
+Client -> Controller: POST /auth/signup/resend { email }
+Controller -> UC: execute(email, clientIp)
+UC -> RateLimiter: check(email/ip)
+RateLimiter -> Redis: INCR+TTL
+RateLimiter --> UC: ok
+UC -> UserRepo: findByEmail(normalize(email))
+UserRepo --> UC: Optional
+alt found and status == PENDING_VERIFICATION
+UC -> TokenRepo: revokeByUser(userId, "resend")
+UC -> Gen: randomUrlSafe(32)
+Gen --> UC: rawToken
+UC -> Hash: sha256(rawToken)
+Hash --> UC: tokenHash
+UC -> TokenRepo: create(new token with tokenHash, expiresAt, state=PENDING)
+UC -> Templates: get("email_verification", locale)
+Templates --> UC: EmailTemplate
+UC -> Email: send(to=user.email, subject, html/text)
+UC --> Controller: 204
+Controller --> Client: 204
+else not found or status != PENDING_VERIFICATION
+UC --> Controller: 404/409
+Controller --> Client: 404/409
+end
+@enduml
+
+@startuml Identity-Auth - MFA Setup and Verify
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "SetupMfaUseCase" as SetupUC
+participant "VerifyMfaUseCase" as VerifyUC
+participant "MfaRepository" as MfaRepo
+participant "TotpService" as Totp
+participant "UserRepository" as UserRepo
+participant "Azure Key Vault" as KV
+
+Client -> Controller: POST /auth/mfa/setup (bearer)
+Controller -> SetupUC: setup(userId)
+SetupUC -> MfaRepo: save(new secretEnc)
+SetupUC -> Totp: generateUri(userId, secretEnc)
+Totp -> KV: decrypt secret if needed
+KV --> Totp: plaintext secret
+Totp --> SetupUC: otpauth URI
+SetupUC --> Controller: { otpauthUri | qrPng }
+Controller --> Client: 200
+
+Client -> Controller: POST /auth/mfa/verify { code } (bearer)
+Controller -> VerifyUC: verify(userId, code)
+VerifyUC -> MfaRepo: get(userId)
+MfaRepo --> VerifyUC: MfaSecret
+VerifyUC -> Totp: verifyCode(secretEnc, code)
+Totp -> KV: decrypt
+KV --> Totp: plaintext
+Totp --> VerifyUC: boolean
+alt correct
+VerifyUC -> MfaRepo: verify(userId)
+VerifyUC -> UserRepo: update(mfaEnabled=true)
+VerifyUC --> Controller: 204
+Controller --> Client: 204
+else invalid
+VerifyUC --> Controller: 400
+Controller --> Client: 400
+end
+@enduml
+
+@startuml Identity-Auth - Logout
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "LogoutUseCase" as UC
+participant "SessionRepository" as SessionRepo
+participant "RefreshTokenRepository" as RefreshRepo
+participant "Redis\n(jti cache)" as Redis
+
+Client -> Controller: POST /auth/logout { sessionId? }
+Controller -> UC: execute(sessionId from JWT or body)
+UC -> SessionRepo: revoke(sessionId, "logout")
+UC -> RefreshRepo: revokeChain(startingId, "logout")
+UC -> Redis: DEL session:jti:{jti}
+UC --> Controller: 204
+Controller --> Client: 204
+@enduml
+
+@startuml Identity-Auth - JWKS endpoint
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "KeyVaultSigner" as Signer
+participant "Azure Key Vault" as KV
+
+Client -> Controller: GET /.well-known/jwks.json
+Controller -> Signer: getJwks()
+Signer -> KV: list keys + public components
+KV --> Signer: JWKS
+Signer --> Controller: Jwks
+Controller --> Client: 200
+@enduml

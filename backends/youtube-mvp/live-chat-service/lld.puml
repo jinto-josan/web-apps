@@ -1,0 +1,89 @@
+@startuml
+title Live Chat Service - LLD
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam interfaceBackgroundColor lightgreen
+skinparam interfaceBorderColor black
+skinparam enumBackgroundColor lightyellow
+skinparam enumBorderColor black
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+
+package "LiveChatService" {
+class ChatController <<REST/WebSocket>> {
++POST /live/{streamId}/chat/messages
++GET /live/{streamId}/chat/messages
++WS /live/{streamId}/chat
++POST /live/{streamId}/chat/moderate
+}
+
+class ChatService {
++sendMessage(streamId, userId, text): MessageDTO
++listMessages(streamId, page): Page
++moderate(streamId, messageId, action): void
+}
+
+class MessageRepository {
++save(msg: ChatMessage)
++findByStream(streamId, page): Page
++updateStatus(messageId, status)
+}
+
+class ChatMessage {
+-id: UUID
+-streamId: UUID
+-userId: UUID
+-text: String
+-status: String
+-at: Instant
+}
+interface PubSubAdapter {
++broadcast(streamId, payload)
+}
+
+interface ModerationAdapter {
++check(text): ModerationResult
+}
+class ModerationResult {
+-flagged: boolean
+-reason: String
+}
+
+class OutboxEventPublisher {
++publish(event: DomainEvent)
+}
+class DomainEvent {}
+}
+
+package "Azure Integrations" {
+class AzureWebPubSub
+class SignalRService
+class CosmosDB
+class RedisStreams
+class AzureServiceBusTopic
+}
+
+ChatController --> ChatService
+ChatService --> MessageRepository
+ChatService --> PubSubAdapter
+ChatService --> ModerationAdapter
+MessageRepository ..> CosmosDB
+PubSubAdapter ..> AzureWebPubSub
+PubSubAdapter ..> SignalRService
+ChatService ..> RedisStreams : real-time fan-out
+ChatService --> OutboxEventPublisher : "CommentModerated (chat) / ChatMessageSent"
+OutboxEventPublisher ..> AzureServiceBusTopic
+
+@enduml

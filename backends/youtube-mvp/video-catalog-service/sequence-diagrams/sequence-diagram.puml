@@ -1,0 +1,61 @@
+@startuml
+title Video Catalog Service - Sequences
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam actorBackgroundColor lightgreen
+skinparam actorBorderColor darkgreen
+skinparam arrowColor black
+skinparam arrowThickness 2
+skinparam sequenceArrowThickness 2
+skinparam sequenceMessageAlignment left
+skinparam sequenceReferenceBackgroundColor lightyellow
+skinparam sequenceReferenceBorderColor black
+
+
+participant "Azure Service Bus" as Bus
+participant "TranscodeCompletedConsumer" as TCC
+participant "ThumbnailGeneratedConsumer" as TGC
+participant "CatalogService" as S
+participant "VideoRepository" as Repo
+participant "OutboxEventPublisher" as Outbox
+
+== Apply Transcode and Publish ==
+Bus -> TCC: TranscodeCompleted{videoId, manifests}
+TCC -> S: applyTranscode(videoId, manifests, [])
+S -> Repo: updateAssets(videoId, manifests, [])
+Repo --> S: ok
+S -> Repo: updateStatus(videoId, PUBLISHED)
+Repo --> S: ok
+S -> Outbox: publish(VideoPublished{videoId})
+Outbox --> S: ack
+
+== Update Metadata ==
+newpage Update Metadata
+actor Creator
+participant "VideoController" as C
+Creator -> C: PATCH /videos/{id}/metadata {title, description}
+C -> S: updateMetadata(videoId, dto)
+S -> Repo: save(Video{...})
+Repo --> S: ok
+S --> Creator: 200 VideoDTO
+
+== Unlist and Remove ==
+newpage Unlist and Remove
+Creator -> C: POST /videos/{id}/unlist
+C -> S: unlist(videoId)
+S -> Repo: updateStatus(videoId, UNLISTED)
+S -> Outbox: publish(VideoUnlisted{videoId})
+
+Creator -> C: DELETE /videos/{id}
+C -> S: remove(videoId)
+S -> Repo: updateStatus(videoId, REMOVED)
+S -> Outbox: publish(VideoRemoved{videoId})
+
+@enduml
