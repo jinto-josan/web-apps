@@ -1,0 +1,192 @@
+@startuml 'High-Level Design: YouTube-scale platform on Azure (DDD microservices on AKS)
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam linetype polyline
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+skinparam backgroundColor white
+skinparam packageBackgroundColor lightblue
+skinparam packageBorderColor darkblue
+skinparam componentBackgroundColor lightgray
+skinparam componentBorderColor black
+left to right direction
+title YouTube-like Platform HLD (Azure + DDD Microservices on AKS)
+
+' External clients
+actor "Clients\n(Web/Mobile/TV)" as Clients
+
+' Edge services
+package "Edge Layer" as Edge {
+    component "Azure Front Door" as FD
+    component "Azure CDN" as CDN
+}
+
+' Core infrastructure
+package "Core Infrastructure" as Core {
+    component "Azure AD\n(OIDC/OAuth)" as AAD
+    component "Azure Key Vault" as KV
+    queue "Azure Event Hubs" as EH
+    queue "Azure Service Bus" as SB
+    database "Cosmos DB" as COSMOS
+    database "Azure SQL\nDatabase" as SQL
+    component "Azure Blob\nStorage" as BLOB
+    database "Azure Cache\nfor Redis" as REDIS
+    component "Azure AI Search" as AISEARCH
+}
+
+' AKS Cluster with grouped services
+node "AKS Cluster" as AKS {
+    component "API Gateway\n(Ingress)" as GW
+    
+    ' Group services by domain
+    package "Identity & User" as IdentityGroup {
+        component "identity-auth-service" as svc_identity
+        component "user-profile-service" as svc_profile
+        component "channel-service" as svc_channel
+    }
+    
+    package "Video Pipeline" as VideoGroup {
+        component "video-upload-service" as svc_upload
+        component "video-transcode-service" as svc_transcode
+        component "video-catalog-service" as svc_catalog
+        component "streaming-session-service" as svc_stream
+        component "thumbnail-service" as svc_thumbnail
+        component "captions-subtitles-service" as svc_captions
+    }
+    
+    package "Content & Policy" as ContentGroup {
+        component "content-id-service" as svc_contentid
+        component "policy-enforcement-service" as svc_policy
+        component "moderation-service" as svc_moderation
+        component "report-abuse-service" as svc_report_abuse
+    }
+    
+    package "Search & Discovery" as SearchGroup {
+        component "search-indexer-service" as svc_indexer
+        component "search-query-service" as svc_search
+        component "recommendations-service" as svc_reco
+        component "history-service" as svc_history
+    }
+    
+    package "Engagement" as EngagementGroup {
+        component "subscription-service" as svc_sub
+        component "playlist-service" as svc_playlist
+        component "engagement-service" as svc_engage
+        component "comments-service" as svc_comments
+        component "notifications-service" as svc_notify
+    }
+    
+    package "Monetization" as MonetizationGroup {
+        component "ads-decision-service" as svc_ads_decision
+        component "ads-tracking-service" as svc_ads_track
+        component "monetization-service" as svc_monetization
+        component "billing-payout-service" as svc_billing
+        component "studio-analytics-service" as svc_analytics
+    }
+    
+    package "Live & Community" as LiveGroup {
+        component "live-ingest-service" as svc_live_ingest
+        component "live-chat-service" as svc_live_chat
+        component "community-posts-service" as svc_community
+        component "shorts-service" as svc_shorts
+    }
+    
+    package "Localization" as LocalizationGroup {
+        component "localization-service" as svc_localization
+        component "translation-service" as svc_translation
+    }
+}
+
+' External services
+package "External Services" as External {
+    component "Azure Media Services" as AMS
+    component "Azure Databricks" as DBR
+    component "Azure Synapse Analytics" as SYN
+    component "Azure Machine Learning" as AML
+    component "Azure Translator" as TR
+    component "Azure Web PubSub" as PUBSUB
+    component "Azure Communication\nServices" as ACS
+    component "App Insights\n(Azure Monitor)" as OBS
+}
+
+' Main flow connections
+Clients --> FD
+FD --> GW : "API Traffic"
+FD --> CDN : "Static/Video Traffic"
+CDN --> Clients : "HLS/DASH Segments"
+
+' Core infrastructure connections
+GW --> IdentityGroup
+GW --> VideoGroup
+GW --> SearchGroup
+GW --> EngagementGroup
+GW --> MonetizationGroup
+GW --> LiveGroup
+GW --> LocalizationGroup
+
+' Data flow
+BLOB --> CDN : "CDN Origin"
+IdentityGroup --> SQL : "User Data"
+IdentityGroup --> REDIS : "Sessions"
+IdentityGroup --> AAD : "OAuth"
+
+VideoGroup --> BLOB : "Video Storage"
+VideoGroup --> EH : "Events"
+VideoGroup --> COSMOS : "Metadata"
+
+SearchGroup --> AISEARCH : "Search Index"
+SearchGroup --> REDIS : "Cache"
+
+EngagementGroup --> COSMOS : "User Data"
+EngagementGroup --> EH : "Events"
+
+MonetizationGroup --> SQL : "Billing"
+MonetizationGroup --> COSMOS : "Analytics"
+
+LiveGroup --> BLOB : "Live Segments"
+LiveGroup --> PUBSUB : "Real-time Chat"
+
+LocalizationGroup --> COSMOS : "Translations"
+LocalizationGroup --> TR : "Translation API"
+
+' Event flow
+EH --> VideoGroup : "Video Events"
+EH --> SearchGroup : "Content Events"
+EH --> EngagementGroup : "User Events"
+EH --> MonetizationGroup : "Ad Events"
+
+' External integrations
+VideoGroup ..> AMS : "Optional Encoding"
+SearchGroup ..> DBR : "ML Pipelines"
+SearchGroup ..> SYN : "Analytics"
+SearchGroup ..> AML : "ML Models"
+LiveGroup ..> PUBSUB : "Real-time"
+EngagementGroup ..> ACS : "Notifications"
+
+' Observability
+AKS --> OBS : "Telemetry"
+FD --> OBS : "Metrics"
+
+' Security
+KV --> AKS : "Secrets"
+
+note right of AKS
+  **Microservices Architecture**
+  - Domain-driven design
+  - Event-driven communication
+  - Independent deployment
+  - Horizontal scaling
+end note
+
+note right of Core
+  **Core Infrastructure**
+  - Managed Azure services
+  - Event streaming
+  - Multi-model data storage
+  - Caching layer
+end note
+
+@enduml
