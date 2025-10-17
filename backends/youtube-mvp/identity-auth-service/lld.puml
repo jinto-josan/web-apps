@@ -1,0 +1,292 @@
+@startuml identity-auth-service-lld
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+
+package "identity-auth-service" {
+' Value Objects and IDs
+class UserId
+class SessionId
+class TokenId
+class Email {
++address: String
++normalized(): String
+}
+class PasswordHash {
++algorithm: String
++hash: byte[]
++verify(password: char[]): boolean
+}
+class MfaSecret {
++secretEnc: byte[]
++verified: boolean
+}
+class DeviceCode
+class UserCode
+class TokenPair {
++accessToken: String
++refreshToken: String
++expiresAt: Instant
+}
+class ClientInfo {
++ipHash: String
++userAgent: String
++deviceId: String
+}
+
+enum UserStatus {
+ACTIVE
+LOCKED
+DELETED
+}
+enum Role {
+USER
+CREATOR
+ADMIN
+}
+
+class User {
++id: UserId
++email: Email
++aadSubject: String
++status: UserStatus
++roles: Set
++mfaEnabled: boolean
++lastLoginAt: Instant
++enableMfa(): void
++lock(): void
++unlock(): void
+}
+
+class Session {
++id: SessionId
++userId: UserId
++userAgent: String
++ipHash: String
++deviceId: String
++createdAt: Instant
++expiresAt: Instant
++revokedAt: Instant
++reason: String
+}
+
+class RefreshToken {
++id: TokenId
++sessionId: SessionId
++tokenHash: byte[]
++issuedAt: Instant
++expiresAt: Instant
++replacedBy: TokenId
++revokedAt: Instant
++reason: String
+}
+
+class DeviceFlow {
++deviceCode: DeviceCode
++userCode: UserCode
++clientId: String
++scope: String
++status: String
++authorizedUserId: UserId
++intervalSec: int
++expiresAt: Instant
+}
+
+class DecodedToken {
++subject: String
++email: String
++issuer: String
++audience: String
++expiresAt: Instant
++claims: Map
+}
+
+class JwtClaims
+class Jwks
+
+' Repositories
+interface UserRepository {
++findById(id: UserId): Optional
++findByEmail(email: Email): Optional
++findByAadSubject(sub: String): Optional
++save(u: User): User
+}
+interface SessionRepository {
++findById(id: SessionId): Optional
++save(s: Session): void
++revoke(id: SessionId, reason: String): void
+}
+interface RefreshTokenRepository {
++findById(id: TokenId): Optional
++findByHash(hash: byte[]): Optional
++saveNew(sessionId: SessionId, hash: byte[], exp: Instant, replacedBy: TokenId): TokenId
++revokeChain(startingId: TokenId, reason: String): void
+}
+interface DeviceFlowRepository {
++put(dc: DeviceCode, uc: UserCode, payload: DeviceFlow, ttlSec: int): void
++get(dc: DeviceCode): Optional
++authorize(dc: DeviceCode, userId: UserId): void
++delete(dc: DeviceCode): void
+}
+interface MfaRepository {
++get(userId: UserId): Optional
++save(userId: UserId, secret: MfaSecret): void
++verify(userId: UserId): void
+}
+
+' Services
+class OidcVerifier {
++verifyIdToken(idToken: String): DecodedToken
+}
+class KeyVaultSigner {
++signJwt(claims: JwtClaims): String
++getJwks(): Jwks
+}
+class PasswordHasher {
++hash(password: char[]): byte[]
++verify(password: char[], hash: byte[]): boolean
+}
+class TotpService {
++generateUri(userId: UserId, secret: MfaSecret): String
++verifyCode(secret: MfaSecret, code: String): boolean
+}
+class TokenService {
++issueFor(user: User, session: Session): TokenPair
++refresh(refreshToken: String): TokenPair
++revokeSession(sessionId: SessionId): void
+}
+
+' Use cases
+class ExchangeTokenUseCase {
++execute(aadIdToken: String, client: ClientInfo): TokenPair
+}
+class LoginUseCase {
++login(email: Email, password: char[], client: ClientInfo): TokenPair
+}
+class RefreshUseCase {
++execute(refreshToken: String, client: ClientInfo): TokenPair
+}
+class LogoutUseCase {
++execute(sessionId: SessionId): void
+}
+class StartDeviceFlowUseCase {
++start(clientId: String, scope: String): DeviceFlow
+}
+class CompleteDeviceFlowUseCase {
++activate(userCode: UserCode, userId: UserId): void
+}
+class DevicePollUseCase {
++poll(dc: DeviceCode): TokenPair
+}
+class SetupMfaUseCase {
++setup(userId: UserId): String
+}
+class VerifyMfaUseCase {
++verify(userId: UserId, code: String): void
+}
+
+' Controllers (API)
+class AuthController {
++exchange(req: ExchangeRequest): TokenResponse
++login(req: LoginRequest): TokenResponse
++refresh(req: RefreshRequest): TokenResponse
++logout(req: LogoutRequest): void
++startDevice(req: DeviceStartRequest): DeviceStartResponse
++activateDevice(req: DeviceActivateRequest): void
++pollDevice(req: DevicePollRequest): TokenResponse
++setupMfa(): MfaSetupResponse
++verifyMfa(req: MfaVerifyRequest): void
++getJwks(): Jwks
+}
+
+' DTOs (abbreviated)
+class ExchangeRequest {
++idToken: String
+}
+class TokenResponse {
++accessToken: String
++refreshToken: String
++expiresIn: long
+}
+class LoginRequest {
++email: String
++password: String
+}
+class RefreshRequest {
++refreshToken: String
+}
+class LogoutRequest {
++sessionId: String
+}
+class DeviceStartRequest {
++clientId: String
++scope: String
+}
+class DeviceStartResponse {
++deviceCode: String
++userCode: String
++verificationUri: String
++interval: int
++expiresIn: long
+}
+class DeviceActivateRequest {
++userCode: String
+}
+class DevicePollRequest {
++deviceCode: String
+}
+class MfaSetupResponse {
++otpauthUri: String
+}
+class MfaVerifyRequest {
++code: String
+}
+
+' Associations
+User *-- Email
+User o-- PasswordHash
+Session --> User : userId
+RefreshToken --> Session : sessionId
+DeviceFlow --> User : authorizedUserId
+AuthController ..> ExchangeTokenUseCase
+AuthController ..> LoginUseCase
+AuthController ..> RefreshUseCase
+AuthController ..> LogoutUseCase
+AuthController ..> StartDeviceFlowUseCase
+AuthController ..> CompleteDeviceFlowUseCase
+AuthController ..> DevicePollUseCase
+AuthController ..> SetupMfaUseCase
+AuthController ..> VerifyMfaUseCase
+ExchangeTokenUseCase ..> OidcVerifier
+ExchangeTokenUseCase ..> UserRepository
+ExchangeTokenUseCase ..> SessionRepository
+ExchangeTokenUseCase ..> TokenService
+ExchangeTokenUseCase ..> RefreshTokenRepository
+LoginUseCase ..> UserRepository
+LoginUseCase ..> PasswordHasher
+LoginUseCase ..> TokenService
+LoginUseCase ..> SessionRepository
+LoginUseCase ..> RefreshTokenRepository
+RefreshUseCase ..> RefreshTokenRepository
+RefreshUseCase ..> TokenService
+LogoutUseCase ..> SessionRepository
+LogoutUseCase ..> RefreshTokenRepository
+StartDeviceFlowUseCase ..> DeviceFlowRepository
+CompleteDeviceFlowUseCase ..> DeviceFlowRepository
+CompleteDeviceFlowUseCase ..> TokenService
+CompleteDeviceFlowUseCase ..> SessionRepository
+CompleteDeviceFlowUseCase ..> UserRepository
+DevicePollUseCase ..> DeviceFlowRepository
+DevicePollUseCase ..> TokenService
+SetupMfaUseCase ..> MfaRepository
+SetupMfaUseCase ..> TotpService
+VerifyMfaUseCase ..> MfaRepository
+VerifyMfaUseCase ..> TotpService
+TokenService ..> KeyVaultSigner
+}
+
+@enduml
