@@ -1,0 +1,47 @@
+@startuml Identity-Auth Service - Local Login
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "LoginUseCase" as LoginUC
+participant "UserRepository" as UserRepo
+participant "PasswordHasher" as Hasher
+participant "Azure Key Vault" as KV
+participant "SessionRepository" as SessionRepo
+participant "TokenService" as TokenService
+participant "KeyVaultSigner" as Signer
+participant "RefreshTokenRepository" as RefreshRepo
+database "Azure SQL\n(users, sessions, refresh_tokens)" as SQL
+participant "Azure Cache for Redis" as Redis
+
+Client -> Controller: POST /auth/login { email, password }
+Controller -> LoginUC: login(email, password, clientInfo)
+LoginUC -> UserRepo: findByEmail(emailNormalized)
+UserRepo --> LoginUC: Optional
+alt User found and status == ACTIVE
+LoginUC -> Hasher: verify(password, storedHash)
+Hasher -> KV: get password pepper
+KV --> Hasher: pepper
+Hasher --> LoginUC: boolean
+alt valid credentials
+LoginUC -> SessionRepo: save(new Session)
+LoginUC -> TokenService: issueFor(User, Session)
+TokenService -> Signer: signJwt(claims)
+Signer --> TokenService: signed JWT
+TokenService -> RefreshRepo: saveNew(sessionId, sha256(refreshToken), exp, replacedBy=null)
+TokenService -> Redis: SET session:jti:{jti} TTL=15m
+TokenService --> LoginUC: TokenPair
+LoginUC --> Controller: TokenPair
+Controller --> Client: 200 { accessToken, refreshToken }
+else invalid credentials
+LoginUC --> Controller: Unauthorized
+Controller --> Client: 401
+end
+else User not found or status != ACTIVE
+LoginUC --> Controller: Unauthorized
+Controller --> Client: 401
+end
+@enduml

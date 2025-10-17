@@ -1,0 +1,33 @@
+@startuml Identity-Auth Service - Refresh Token Flow
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "RefreshUseCase" as RefreshUC
+participant "RefreshTokenRepository" as RefreshRepo
+participant "TokenService" as TokenService
+participant "KeyVaultSigner" as Signer
+database "Azure SQL\n(refresh_tokens)" as SQL
+
+Client -> Controller: POST /auth/refresh { refreshToken }
+Controller -> RefreshUC: execute(refreshToken, clientInfo)
+RefreshUC -> RefreshRepo: findByHash(sha256(refreshToken))
+RefreshRepo --> RefreshUC: Optional
+alt valid, current, not revoked, not expired
+RefreshUC -> TokenService: refresh(refreshToken)
+TokenService -> Signer: signJwt(new claims)
+Signer --> TokenService: signed JWT
+TokenService -> RefreshRepo: saveNew(sessionId, sha256(newRefreshToken), exp, replacedBy=null)
+TokenService -> RefreshRepo: mark old token replaced_by -> newId
+TokenService --> RefreshUC: TokenPair
+RefreshUC --> Controller: TokenPair
+Controller --> Client: 200 { accessToken, refreshToken }
+else reused or invalid
+RefreshUC -> RefreshRepo: revokeChain(startingId, "reuse detected")
+RefreshUC --> Controller: Conflict
+Controller --> Client: 409 (token reuse)
+end
+@enduml

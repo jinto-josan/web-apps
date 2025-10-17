@@ -1,0 +1,23 @@
+@startuml Identity-Auth Service - MFA Setup
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam legendFontName "Helvetica"
+skinparam noteFontName "Helvetica"
+autonumber
+actor Client as Client
+participant "AuthController" as Controller
+participant "SetupMfaUseCase" as SetupMfaUC
+participant "MfaRepository" as MfaRepo
+participant "TotpService" as Totp
+participant "Azure Key Vault" as KV
+
+Client -> Controller: POST /auth/mfa/setup\n(Authorization: bearer)
+Controller -> SetupMfaUC: setup(userId)
+SetupMfaUC -> MfaRepo: save(userId, new secretEnc)
+SetupMfaUC -> Totp: generateUri(userId, secret)
+Totp -> KV: decrypt secret (if needed)
+KV --> Totp: plaintext secret
+Totp --> SetupMfaUC: otpauth:// URI
+SetupMfaUC --> Controller: { otpauthUri | qrPng }
+Controller --> Client: 200
+@enduml
