@@ -55,16 +55,12 @@ public class OutboxEvent {
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
     }
-    @jakarta.persistence.Transient
     public String getType() { return this.eventType; }
 
-    @jakarta.persistence.Transient
     public String getPayload() { return this.payloadJson; }
 
-    @jakarta.persistence.Transient
     public Instant getOccurredAt() { return this.createdAt; }
 
     // Optional: expose a partition key; Service Bus can benefit from this
-    @jakarta.persistence.Transient
     public String getPartitionKey() { return this.aggregateId; }
 }
