@@ -3,18 +3,18 @@ package com.youtube.identityauthservice.infrastructure.messaging;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.messaging.servicebus.*;
 import com.youtube.identityauthservice.domain.model.OutboxEvent;
-import com.youtube.identityauthservice.domain.repository.OutboxEventRepository;
 import com.youtube.identityauthservice.infrastructure.config.ServiceBusProperties;
+import com.youtube.identityauthservice.infrastructure.persistence.OutboxRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.Instant;
 import java.util.List;
 public class ServiceBusOutboxDispatcher {
 
-    private final OutboxEventRepository repo;
+    private final OutboxRepository repo;
     private final ServiceBusSenderClient sender;
 
-    public ServiceBusOutboxDispatcher(OutboxEventRepository repo, ServiceBusProperties props) {
+    public ServiceBusOutboxDispatcher(OutboxRepository repo, ServiceBusProperties props) {
         this.repo = repo;
 
 
@@ -32,7 +32,7 @@ public class ServiceBusOutboxDispatcher {
 
     @Scheduled(fixedDelayString = "${app.outbox.dispatch-interval-ms:2000}")
     public void dispatch() {
-        List<OutboxEvent> batch = repo.findNextPendingBatch(100);
+        List<OutboxEvent> batch = repo.findTop100ByDispatchedAtIsNullOrderByCreatedAtAsc();
         for (OutboxEvent evt : batch) {
             try {
                 ServiceBusMessage msg = new ServiceBusMessage(evt.getPayload());
