@@ -26,5 +26,5 @@ public final class AuthDtos {
     public record DeviceStartRequest(String clientId, String scope) {}
     public record DeviceStartResponse(String deviceCode, String userCode, String verificationUri, long expiresIn, long interval) {}
     public record DevicePollRequest(@NotBlank String deviceCode) {}
-    public record DeviceVerifyRequest(@NotBlank String userCode, @NotBlank String idToken) {}
+    public record DeviceActivateRequest(@NotBlank String userCode, @NotBlank String idToken) {}
 }

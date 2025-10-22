@@ -67,8 +67,8 @@ public class DeviceController {
         return new AuthDtos.TokenResponse(access, sAndRt.refreshTokenRaw, "Bearer", accessTtl, scope);
     }
 
-    @PostMapping("/verify")
-    public java.util.Map<String, Object> verify(@Valid @RequestBody AuthDtos.DeviceVerifyRequest req) {
+    @PostMapping("/activate")
+    public java.util.Map<String, Object> activate(@Valid @RequestBody AuthDtos.DeviceActivateRequest req) {
         var vi = verifier.verify(req.idToken());
         String email = Optional.ofNullable(vi.email()).orElseThrow(() -> new SecurityException("email claim missing"));
         String name = Optional.ofNullable(vi.name()).orElse(email);

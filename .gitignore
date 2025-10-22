@@ -31,6 +31,7 @@ dist/
 *.zip
 *.tar
 *.gz
+./**/target/
 ./**/compiler.xml
 ./**/encodings.xml
 ./**/jarRepositories.xml
