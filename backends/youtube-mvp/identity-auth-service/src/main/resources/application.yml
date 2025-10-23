@@ -22,52 +22,6 @@ spring:
     host:
     port:
 
-app:
-  issuer: http://localhost:8080
-  audience: identity-platform
-  access-token-ttl-seconds: 900
-  refresh-token-ttl-seconds: 2592000
-  device:
-    verification-uri: http://localhost:8080/device
-    user-code-length: 8
-    device-code-ttl-seconds: 900
-    poll-interval-seconds: 5
-  jwt:
-    signing:
-      mode: keyvault
-    compositePublicJwks: true
-    fallbackToLocal: true
-  keyvault:
-    vaultUri: https://youtube-kv.vault.azure.net/
-    keyName: signing-key
-  localrsa:
-    kid: kid-local-1
-    privatePemPath: /etc/keys/access_pkcs8.pem
-    publicPemPath: /etc/keys/access_public.pem
-  oidc:
-    providers:
-      - issuer: https://sts.windows.net/29e37b86-b53e-4bc1-8bf5-90f4a05204b2/
-        discoveryUrl: https://login.microsoftonline.com/29e37b86-b53e-4bc1-8bf5-90f4a05204b2/v2.0/.well-known/openid-configuration
-        audiences:
-          - api://5b3ef65b-9c29-47a9-8d5b-f2032ee3e8e7
-#          - <frontend-client-id>
-#          - api://<your-api-app-id>
-#      - issuer: https://<tenant>.b2clogin.com/<tenant>.onmicrosoft.com/<policy>/v2.0
-#        discoveryUrl: https://<tenant>.b2clogin.com/<tenant>.onmicrosoft.com/<policy>/v2.0/.well-known/openid-configuration
-#        audiences:
-#          - <b2c-app-client-id>
-  servicebus:
-    # one of:
-#    connectionString: Endpoint=sb://my-ns.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=...
-    managed identity: true
-    fullyQualifiedNamespace: output-event.servicebus.windows.net
-    useTopic: true
-    topicName: identity-events
-    enabled: true
-
-    outbox:
-      dispatch-interval-ms: 2000
-
 management:
   endpoints:
     web:
