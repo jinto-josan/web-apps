@@ -142,6 +142,7 @@ public class SessionRefreshService {
             outboxRepo.save(evt);
         } catch (Exception e) {
             // Last resort: keep service running, log error
+            throw new RuntimeException("Failed to publish event", e);
         }
     }
 }

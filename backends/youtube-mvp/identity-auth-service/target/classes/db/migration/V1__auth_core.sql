@@ -1,7 +1,7 @@
 CREATE SCHEMA IF NOT EXISTS auth;  
   
 CREATE TABLE IF NOT EXISTS auth.users (  
-  id                CHAR(26)        PRIMARY KEY,  
+  id                VARCHAR(26)        PRIMARY KEY,
   email             VARCHAR(320)    NOT NULL,  
   normalized_email  VARCHAR(320)    NOT NULL,  
   display_name      VARCHAR(200)    NOT NULL,  
@@ -22,8 +22,8 @@ CREATE INDEX IF NOT EXISTS ix_auth_users_status ON auth.users (status);
 CREATE INDEX IF NOT EXISTS ix_auth_users_updated_at ON auth.users (updated_at);  
   
 CREATE TABLE IF NOT EXISTS auth.sessions (  
-  id               CHAR(26)      PRIMARY KEY,  
-  user_id          CHAR(26)      NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,  
+  id               VARCHAR(26)      PRIMARY KEY,
+  user_id          VARCHAR(26)      NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   jti              VARCHAR(64)   NOT NULL,  
   device_id        VARCHAR(64),  
   user_agent       VARCHAR(512),  
@@ -39,11 +39,11 @@ CREATE INDEX IF NOT EXISTS ix_auth_sessions_user_created ON auth.sessions (user_
 CREATE INDEX IF NOT EXISTS ix_auth_sessions_revoked_at ON auth.sessions (revoked_at);  
   
 CREATE TABLE IF NOT EXISTS auth.refresh_tokens (  
-  id                   CHAR(26)       PRIMARY KEY,  
-  session_id           CHAR(26)       NOT NULL REFERENCES auth.sessions(id) ON DELETE CASCADE,  
+  id                   VARCHAR(26)       PRIMARY KEY,
+  session_id           VARCHAR(26)       NOT NULL REFERENCES auth.sessions(id) ON DELETE CASCADE,
   token_hash           BYTEA          NOT NULL,  
   expires_at           TIMESTAMPTZ    NOT NULL,  
-  replaced_by_token_id CHAR(26),  
+  replaced_by_token_id VARCHAR(26),
   revoked_at           TIMESTAMPTZ,  
   revoke_reason        VARCHAR(200),  
   created_at           TIMESTAMPTZ    NOT NULL DEFAULT NOW(),  

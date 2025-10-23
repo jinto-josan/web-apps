@@ -15,7 +15,7 @@ public interface OutboxRepository extends JpaRepository<OutboxEvent, String> {
     List<OutboxEvent> findTop100ByDispatchedAtIsNullOrderByCreatedAtAsc();
     
     @Modifying
-    @Query("UPDATE OutboxEvent o SET o.dispatchedAt = :dispatchedAt, o.brokerMessageId = :brokerMessageId WHERE o.id = :id")
+    @Query("UPDATE OutboxEvent o SET o.dispatchedAt = :dispatchedAt, o.brokerMessageId = :brokerMessageId, o.error= '' WHERE o.id = :id")
     void markDispatched(@Param("id") String id, @Param("brokerMessageId") String brokerMessageId, @Param("dispatchedAt") Instant dispatchedAt);
 
     @Modifying

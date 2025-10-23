@@ -23,15 +23,13 @@ public class HttpIdempotency {
     @Column(name = "idempotency_key", length = 128, nullable = false)
     private String idempotencyKey;
 
-    @Lob
-    @Column(name = "request_hash", nullable = false)
+    @Column(name = "request_hash", nullable = false, columnDefinition = "bytea")
     private byte[] requestHash;
 
     @Column(name = "response_status")
     private Integer responseStatus;
 
-    @Lob
-    @Column(name = "response_body")
+    @Column(name = "response_body", columnDefinition = "bytea")
     private byte[] responseBody;
 
     @Column(name = "created_at", nullable = false)

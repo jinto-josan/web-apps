@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS auth.outbox_events (
-  id                CHAR(26)       PRIMARY KEY,
+  id                VARCHAR(26)     PRIMARY KEY,
   event_type        VARCHAR(200)   NOT NULL,
   aggregate_type    VARCHAR(100),
   aggregate_id      VARCHAR(128),

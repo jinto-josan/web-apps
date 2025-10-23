@@ -29,8 +29,7 @@ public class RefreshToken {
     @Column(name = "session_id", nullable = false, length = 26)
     private String sessionId;
 
-    @Lob
-    @Column(name = "token_hash", nullable = false)
+    @Column(name = "token_hash", nullable = false, columnDefinition = "bytea")
     private byte[] tokenHash;
 
     @Column(name = "expires_at", nullable = false)
