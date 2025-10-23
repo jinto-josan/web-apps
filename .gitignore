@@ -1,6 +1,10 @@
 # Java class files
 *.class
 
+# Maven build output
+target/
+**/target/
+
 # .NET build output
 bin/
 obj/
@@ -24,22 +28,20 @@ dist/
 *.iml
 *.ipr
 *.iws
-*.class
 *.jar
 *.war
 *.ear
 *.zip
 *.tar
 *.gz
-./**/target/
-./**/compiler.xml
-./**/encodings.xml
-./**/jarRepositories.xml
-./**/misc.xml
-./**/vcs.xml
-./**/workspace.xml
-./**/settings.xml
-./**/modules.xml
-./**/codeStyles.xml
-./**/inspectionProfiles.xml
-./**/runConfigurations.xml
+**/compiler.xml
+**/encodings.xml
+**/jarRepositories.xml
+**/misc.xml
+**/vcs.xml
+**/workspace.xml
+**/settings.xml
+**/modules.xml
+**/codeStyles.xml
+**/inspectionProfiles.xml
+**/runConfigurations.xml

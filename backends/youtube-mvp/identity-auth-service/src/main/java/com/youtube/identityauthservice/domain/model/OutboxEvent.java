@@ -3,6 +3,8 @@ package com.youtube.identityauthservice.domain.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -15,7 +17,7 @@ import java.time.Instant;
 public class OutboxEvent {
 
     @Id
-    @Column(length = 26, nullable = false)
+    @Column(name = "id", length = 26, nullable = false)
     private String id;
 
     @Column(name = "event_type", nullable = false, length = 200)
@@ -27,7 +29,8 @@ public class OutboxEvent {
     @Column(name = "aggregate_id", length = 128)
     private String aggregateId;
 
-    @Column(name = "payload_json", nullable = false, columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload_json", nullable = false)
     private String payloadJson;
 
     @Column(name = "correlation_id", length = 64)

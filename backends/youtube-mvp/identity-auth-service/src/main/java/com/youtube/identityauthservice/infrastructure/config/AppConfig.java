@@ -18,11 +18,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 public class AppConfig {
 
     @Bean
-    public JwkProvider jwkProvider(LocalRsaProperties localProps) {
-        return new LocalRsaJwkProvider(localProps);
-    }
-
-    @Bean
     public TokenService tokenService(
             @Value("${app.issuer}") String issuer,
             @Value("${app.audience}") String audience,

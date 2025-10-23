@@ -3,9 +3,9 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/identityauth
-    username: identity
-    password: identity
+    url: 
+    username: 
+    password:
   jpa:
     hibernate:
       ddl-auto: validate
@@ -13,61 +13,26 @@ spring:
     properties:
       hibernate.jdbc.time_zone: UTC
       hibernate.format_sql: true
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
   flyway:
     enabled: true
     schemas: auth
     locations: classpath:db/migration
   redis:
-    host: localhost
-    port: 6379
-
-app:
-  issuer: http://localhost:8080
-  audience: identity-platform
-  access-token-ttl-seconds: 900
-  refresh-token-ttl-seconds: 2592000
-  device:
-    verification-uri: http://localhost:8080/device
-    user-code-length: 8
-    device-code-ttl-seconds: 900
-    poll-interval-seconds: 5
-  jwt:
-    signing:
-      mode: keyvault
-    compositePublicJwks: true
-    fallbackToLocal: true
-    keyvault:
-      vaultUri: https://my-vault.vault.azure.net
-      keyName: access-token-key
-    localrsa:
-      kid: kid-local-1
-      privatePemPath: /etc/keys/access_pkcs8.pem
-      publicPemPath: /etc/keys/access_public.pem
-  oidc:
-    providers:
-      - issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
-        discoveryUrl: https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration
-        audiences:
-          - <frontend-client-id>
-          - api://<your-api-app-id>
-      - issuer: https://<tenant>.b2clogin.com/<tenant>.onmicrosoft.com/<policy>/v2.0
-        discoveryUrl: https://<tenant>.b2clogin.com/<tenant>.onmicrosoft.com/<policy>/v2.0/.well-known/openid-configuration
-        audiences:
-          - <b2c-app-client-id>
-  servicebus:
-    # one of:
-    connectionString: Endpoint=sb://my-ns.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=...
-    # or managed identity:
-    # fullyQualifiedNamespace: my-ns.servicebus.windows.net
-    useTopic: true
-    topicName: identity-events
-    enabled: true
-
-    outbox:
-      dispatch-interval-ms: 2000
+    host:
+    port:
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info,prometheus
+
+# SpringDoc OpenAPI Configuration
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    tryItOutEnabled: true
+  packages-to-scan: com.youtube.identityauthservice.interfaces.rest
