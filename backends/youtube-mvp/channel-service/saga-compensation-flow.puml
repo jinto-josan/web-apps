@@ -1,0 +1,72 @@
+@startuml SagaCompensationFlow
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam componentStyle rectangle
+
+title Saga Pattern - Compensation Flow
+
+package "Saga Execution Flow" as SagaFlow {
+    component [Saga] as Saga
+    component [SagaContext] as Context
+    component [SagaStep] as Step
+    component [Compensation Logic] as Compensation
+}
+
+package "Create Channel Saga Steps" as Steps {
+    component [1. ValidateHandleStep] as Step1
+    component [2. ReserveHandleStep] as Step2
+    component [3. CreateChannelStep] as Step3
+    component [4. CommitHandleStep] as Step4
+    component [5. PublishEventsStep] as Step5
+}
+
+package "Compensation Actions" as Compensations {
+    component [Release Handle Reservation] as Comp1
+    component [Delete Channel] as Comp2
+    component [Release Handle] as Comp3
+    component [Remove from Cache] as Comp4
+    component [Remove Member] as Comp5
+}
+
+package "Failure Scenarios" as Failures {
+    component [Step 2 Fails] as Fail2
+    component [Step 3 Fails] as Fail3
+    component [Step 4 Fails] as Fail4
+    component [Step 5 Fails] as Fail5
+}
+
+' Normal execution flow
+Saga --> Step1 : execute()
+Step1 --> Step2 : execute()
+Step2 --> Step3 : execute()
+Step3 --> Step4 : execute()
+Step4 --> Step5 : execute()
+
+' Failure scenarios
+Step2 --> Fail2 : Exception
+Step3 --> Fail3 : Exception
+Step4 --> Fail4 : Exception
+Step5 --> Fail5 : Exception
+
+' Compensation flows
+Fail2 --> Compensation : compensate()
+Fail3 --> Compensation : compensate()
+Fail4 --> Compensation : compensate()
+Fail5 --> Compensation : compensate()
+
+Compensation --> Comp1 : Release handle reservation
+Compensation --> Comp2 : Delete channel
+Compensation --> Comp3 : Release handle
+Compensation --> Comp4 : Remove from cache
+Compensation --> Comp5 : Remove member
+
+note right of Step1 : **Validation Only**\nNo compensation needed\n(Read-only operation)
+note right of Step2 : **Handle Reservation**\nCompensation: Release reservation\nRollback: handleRegistry.release()
+note right of Step3 : **Channel Creation**\nCompensation: Delete channel\nRollback: channelRepository.delete()
+note right of Step4 : **Handle Commitment**\nCompensation: Release handle\nRollback: handleRegistry.release()
+note right of Step5 : **Event Publishing**\nCompensation: Remove from cache\nRollback: cacheService.invalidate()\nRollback: memberRepository.remove()
+
+note top of Compensation : **Compensation Logic**\n- Executes in reverse order\n- Each step knows how to undo itself\n- Ensures eventual consistency\n- Handles partial failures gracefully
+
+@enduml

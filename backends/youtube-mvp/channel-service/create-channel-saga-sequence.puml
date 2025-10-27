@@ -1,0 +1,165 @@
+@startuml CreateChannelSagaSequence
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+skinparam maxmessagesize 60
+
+title Create Channel Saga - Sequence Diagram
+
+actor Client
+participant "ChannelController" as Controller
+participant "CommandFactory" as Factory
+participant "ChannelUseCase" as UseCase
+participant "ChannelCommandHandler" as Handler
+participant "CreateChannelSaga" as Saga
+participant "ValidateHandleStep" as ValidateStep
+participant "ReserveHandleStep" as ReserveStep
+participant "CreateChannelStep" as CreateStep
+participant "CommitHandleStep" as CommitStep
+participant "PublishEventsStep" as PublishStep
+participant "ChannelRepository" as ChannelRepo
+participant "HandleRegistry" as HandleRepo
+participant "ChannelMemberRepository" as MemberRepo
+participant "EventPublisher" as EventPub
+participant "CacheService" as Cache
+participant "ReservedWordsService" as Reserved
+participant "Database" as DB
+participant "Redis" as CacheStore
+
+Client -> Controller: POST /channels\n{handle, title, description, language, country}
+activate Controller
+
+Controller -> Factory: createChannelCommand(ownerUserId, handle, title, description, language, country)
+activate Factory
+Factory --> Controller: CreateChannelCommand
+deactivate Factory
+
+Controller -> UseCase: createChannel(command)
+activate UseCase
+
+UseCase -> Handler: createChannel(command)
+activate Handler
+
+Handler -> Saga: execute()
+activate Saga
+
+note over Saga: **Saga Execution Started**\nSagaId: {sagaId}\nContext: {handleLower, ownerUserId}
+
+Saga -> ValidateStep: execute(context)
+activate ValidateStep
+
+ValidateStep -> Reserved: isReserved(handleLower)
+activate Reserved
+Reserved --> ValidateStep: false (not reserved)
+deactivate Reserved
+
+note over ValidateStep: **Step 1: Handle Validation**\n✓ Format validation\n✓ Reserved words check\n✓ Availability check
+
+ValidateStep --> Saga: validation passed
+deactivate ValidateStep
+
+Saga -> ReserveStep: execute(context)
+activate ReserveStep
+
+ReserveStep -> HandleRepo: reserve(handleLower, ownerUserId, TTL)
+activate HandleRepo
+HandleRepo -> DB: INSERT handle reservation
+activate DB
+DB --> HandleRepo: handle reserved
+deactivate DB
+HandleRepo --> ReserveStep: true (reserved)
+deactivate HandleRepo
+
+note over ReserveStep: **Step 2: Handle Reservation**\n✓ Reserve handle with TTL\n✓ Prevent concurrent reservations\n✓ Compensation: Release reservation
+
+ReserveStep --> Saga: handle reserved
+deactivate ReserveStep
+
+Saga -> CreateStep: execute(context)
+activate CreateStep
+
+CreateStep -> ChannelRepo: saveNew(channel)
+activate ChannelRepo
+ChannelRepo -> DB: INSERT channel
+activate DB
+DB --> ChannelRepo: channel created
+deactivate DB
+ChannelRepo --> CreateStep: Channel entity
+deactivate ChannelRepo
+
+note over CreateStep: **Step 3: Channel Creation**\n✓ Persist channel entity\n✓ Generate ULID\n✓ Set timestamps\n✓ Compensation: Delete channel
+
+CreateStep --> Saga: Channel entity
+deactivate CreateStep
+
+Saga -> CommitStep: execute(context)
+activate CommitStep
+
+CommitStep -> HandleRepo: commit(handleLower, channelId)
+activate HandleRepo
+HandleRepo -> DB: UPDATE handle status to COMMITTED
+activate DB
+DB --> HandleRepo: handle committed
+deactivate DB
+HandleRepo --> CommitStep: true (committed)
+deactivate HandleRepo
+
+note over CommitStep: **Step 4: Handle Commitment**\n✓ Commit handle reservation\n✓ Link handle to channel\n✓ Compensation: Release handle
+
+CommitStep --> Saga: handle committed
+deactivate CommitStep
+
+Saga -> PublishStep: execute(context)
+activate PublishStep
+
+PublishStep -> EventPub: publishChannelCreated(ChannelCreated event)
+activate EventPub
+EventPub -> CacheStore: Publish to message queue
+activate CacheStore
+CacheStore --> EventPub: Event published
+deactivate CacheStore
+EventPub --> PublishStep: Event published
+deactivate EventPub
+
+PublishStep -> Cache: putHandleMapping(handleLower, channelId)
+activate Cache
+Cache -> CacheStore: SET handle mapping
+activate CacheStore
+CacheStore --> Cache: Mapping cached
+deactivate CacheStore
+Cache --> PublishStep: Mapping cached
+deactivate Cache
+
+PublishStep -> MemberRepo: add(channelId, ownerUserId, OWNER)
+activate MemberRepo
+MemberRepo -> DB: INSERT channel member
+activate DB
+DB --> MemberRepo: Member added
+deactivate DB
+MemberRepo --> PublishStep: Member added
+deactivate MemberRepo
+
+note over PublishStep: **Step 5: Event Publishing**\n✓ Publish ChannelCreated event\n✓ Update cache\n✓ Add owner as member\n✓ Compensation: Remove from cache, remove member
+
+PublishStep --> Saga: Events published
+deactivate PublishStep
+
+note over Saga: **Saga Execution Completed Successfully**\nAll steps executed without errors\nNo compensation needed
+
+Saga --> Handler: Channel entity
+deactivate Saga
+
+Handler --> UseCase: Channel entity
+deactivate Handler
+
+UseCase --> Controller: Channel entity
+deactivate UseCase
+
+Controller --> Client: 201 Created\nChannel entity
+deactivate Controller
+
+note over Client, CacheStore: **Success Flow Complete**\n✓ Channel created\n✓ Handle reserved and committed\n✓ Events published\n✓ Cache updated\n✓ Owner added as member
+
+@enduml

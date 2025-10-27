@@ -1,0 +1,235 @@
+@startuml ChannelServiceArchitecture
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam componentStyle rectangle
+
+title Channel Service - Clean Architecture with Command & Saga Patterns
+
+package "Interface Layer" as InterfaceLayer {
+    component [ChannelController] as Controller
+    component [CommandFactory] as Factory
+    note right of Controller : REST API Endpoints\n- POST /channels\n- GET /channels/{id}\n- POST /channels/{id}/handle\n- POST /channels/{id}/branding\n- POST /channels/{id}/members
+    note right of Factory : Command Creation\n- CreateChannelCommand\n- ChangeHandleCommand\n- UpdateBrandingCommand\n- SetMemberRoleCommand
+}
+
+package "Application Layer" as ApplicationLayer {
+    component [ChannelUseCase] as UseCase
+    component [ChannelUseCaseImpl] as UseCaseImpl
+    component [ChannelCommandHandler] as CommandHandler
+    component [ChannelCommandHandlerImpl] as CommandHandlerImpl
+    
+    package "Commands" as Commands {
+        component [CreateChannelCommand] as CreateCmd
+        component [ChangeHandleCommand] as ChangeCmd
+        component [UpdateBrandingCommand] as UpdateCmd
+        component [SetMemberRoleCommand] as SetRoleCmd
+    }
+    
+    package "Sagas" as Sagas {
+        component [CreateChannelSaga] as CreateSaga
+        component [ChangeHandleSaga] as ChangeSaga
+        component [UpdateBrandingSaga] as UpdateSaga
+        component [SetMemberRoleSaga] as SetRoleSaga
+        
+        component [SagaContext] as Context
+        component [SagaStep] as Step
+    }
+}
+
+package "Domain Layer" as DomainLayer {
+    package "Entities" as Entities {
+        component [Channel] as ChannelEntity
+        component [Branding] as BrandingEntity
+        component [Policy] as PolicyEntity
+        component [Role] as RoleEntity
+    }
+    
+    package "Events" as Events {
+        component [ChannelCreated] as CreatedEvent
+        component [ChannelHandleChanged] as HandleEvent
+        component [ChannelMemberRoleChanged] as RoleEvent
+    }
+    
+    package "Repositories" as Repositories {
+        component [ChannelRepository] as ChannelRepo
+        component [HandleRegistry] as HandleRepo
+        component [ChannelMemberRepository] as MemberRepo
+    }
+    
+    package "Services" as Services {
+        component [EventPublisher] as EventService
+        component [CacheService] as CacheService
+        component [BlobUriValidator] as BlobService
+        component [ReservedWordsService] as ReservedService
+    }
+}
+
+package "Infrastructure Layer" as InfrastructureLayer {
+    package "JPA Entities" as JPAEntities {
+        component [ChannelEntity] as ChannelJPA
+        component [HandleEntity] as HandleJPA
+        component [ChannelMemberEntity] as MemberJPA
+        component [BrandingEmbeddable] as BrandingJPA
+        component [PolicyEmbeddable] as PolicyJPA
+    }
+    
+    package "Repository Implementations" as RepoImpls {
+        component [ChannelRepositoryImpl] as ChannelRepoImpl
+        component [HandleRegistryImpl] as HandleRepoImpl
+        component [ChannelMemberRepositoryImpl] as MemberRepoImpl
+    }
+    
+    package "Service Implementations" as ServiceImpls {
+        component [EventPublisherImpl] as EventServiceImpl
+        component [CacheServiceImpl] as CacheServiceImpl
+        component [BlobUriValidatorImpl] as BlobServiceImpl
+        component [ReservedWordsServiceImpl] as ReservedServiceImpl
+    }
+    
+    package "AOP Aspects" as AOPAspects {
+        component [LoggingAspect] as Logging
+        component [MetricsAspect] as Metrics
+        component [ValidationAspect] as Validation
+        component [TransactionAspect] as Transaction
+    }
+    
+    package "JPA Repositories" as JPARepos {
+        component [ChannelJpaRepository] as ChannelJPA
+        component [HandleJpaRepository] as HandleJPA
+        component [ChannelMemberJpaRepository] as MemberJPA
+    }
+}
+
+package "External Systems" as External {
+    component [PostgreSQL] as Database
+    component [Redis] as Cache
+    component [Service Bus] as Messaging
+}
+
+' Interface Layer Dependencies
+Controller --> UseCase
+Controller --> Factory
+Factory --> CreateCmd
+Factory --> ChangeCmd
+Factory --> UpdateCmd
+Factory --> SetRoleCmd
+
+' Application Layer Dependencies
+UseCase --> UseCaseImpl
+UseCaseImpl --> CommandHandler
+CommandHandler --> CommandHandlerImpl
+CommandHandlerImpl --> CreateSaga
+CommandHandlerImpl --> ChangeSaga
+CommandHandlerImpl --> UpdateSaga
+CommandHandlerImpl --> SetRoleSaga
+
+CreateCmd --> CommandHandler
+ChangeCmd --> CommandHandler
+UpdateCmd --> CommandHandler
+SetRoleCmd --> CommandHandler
+
+CreateSaga --> Context
+ChangeSaga --> Context
+UpdateSaga --> Context
+SetRoleSaga --> Context
+CreateSaga --> Step
+ChangeSaga --> Step
+UpdateSaga --> Step
+SetRoleSaga --> Step
+
+' Domain Layer Dependencies (Application -> Domain)
+CommandHandlerImpl --> ChannelRepo
+CommandHandlerImpl --> HandleRepo
+CommandHandlerImpl --> MemberRepo
+CommandHandlerImpl --> EventService
+CommandHandlerImpl --> CacheService
+CommandHandlerImpl --> BlobService
+CommandHandlerImpl --> ReservedService
+
+CreateSaga --> ChannelRepo
+CreateSaga --> HandleRepo
+CreateSaga --> MemberRepo
+CreateSaga --> EventService
+CreateSaga --> CacheService
+CreateSaga --> ReservedService
+
+ChangeSaga --> ChannelRepo
+ChangeSaga --> HandleRepo
+ChangeSaga --> EventService
+ChangeSaga --> CacheService
+ChangeSaga --> ReservedService
+
+UpdateSaga --> ChannelRepo
+UpdateSaga --> EventService
+UpdateSaga --> BlobService
+
+SetRoleSaga --> MemberRepo
+SetRoleSaga --> EventService
+SetRoleSaga --> CacheService
+
+' Domain Layer Internal Dependencies
+ChannelEntity --> BrandingEntity
+ChannelEntity --> PolicyEntity
+ChannelEntity --> RoleEntity
+
+CreatedEvent --> ChannelEntity
+HandleEvent --> ChannelEntity
+RoleEvent --> ChannelEntity
+
+' Infrastructure Layer Dependencies (Infrastructure -> Domain)
+ChannelRepoImpl --> ChannelRepo
+HandleRepoImpl --> HandleRepo
+MemberRepoImpl --> MemberRepo
+EventServiceImpl --> EventService
+CacheServiceImpl --> CacheService
+BlobServiceImpl --> BlobService
+ReservedServiceImpl --> ReservedService
+
+' Infrastructure Layer Internal Dependencies
+ChannelRepoImpl --> ChannelJPA
+HandleRepoImpl --> HandleJPA
+MemberRepoImpl --> MemberJPA
+
+ChannelJPA --> BrandingJPA
+ChannelJPA --> PolicyJPA
+MemberJPA --> RoleEntity
+
+' External System Dependencies
+ChannelRepoImpl --> Database
+HandleRepoImpl --> Database
+MemberRepoImpl --> Database
+CacheServiceImpl --> Cache
+EventServiceImpl --> Messaging
+
+' AOP Dependencies
+Logging --> CommandHandlerImpl
+Logging --> CreateSaga
+Logging --> ChangeSaga
+Logging --> UpdateSaga
+Logging --> SetRoleSaga
+
+Metrics --> CommandHandlerImpl
+Metrics --> CreateSaga
+Metrics --> ChangeSaga
+Metrics --> UpdateSaga
+Metrics --> SetRoleSaga
+
+Validation --> CommandHandlerImpl
+Validation --> CreateSaga
+Validation --> ChangeSaga
+Validation --> UpdateSaga
+Validation --> SetRoleSaga
+
+Transaction --> CommandHandlerImpl
+Transaction --> CreateSaga
+Transaction --> ChangeSaga
+Transaction --> UpdateSaga
+Transaction --> SetRoleSaga
+
+note top of InterfaceLayer : **Interface Layer**\nHandles external communication\nDepends on Application Layer only
+note top of ApplicationLayer : **Application Layer**\nUse cases and orchestration\nDepends on Domain Layer only
+note top of DomainLayer : **Domain Layer**\nPure business logic\nNo external dependencies
+note top of InfrastructureLayer : **Infrastructure Layer**\nFramework implementations\nImplements Domain interfaces
+
+@enduml

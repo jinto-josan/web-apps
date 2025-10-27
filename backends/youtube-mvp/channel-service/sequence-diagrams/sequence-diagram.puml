@@ -1,5 +1,5 @@
 @startuml
-title Channel Service - Sequences
+title Channel Service - Clean Architecture Sequences
 
 skinparam shadowing false
 skinparam fontName "Helvetica"
@@ -18,44 +18,387 @@ skinparam sequenceMessageAlignment left
 skinparam sequenceReferenceBackgroundColor lightyellow
 skinparam sequenceReferenceBorderColor black
 
+== Channel Creation (Clean Architecture + Saga Pattern) ==
+actor Client
+participant "API Gateway" as APIGW
+participant "ChannelController" as Controller
+participant "CommandFactory" as Factory
+participant "ChannelUseCase" as UseCase
+participant "ChannelCommandHandler" as Handler
+participant "CreateChannelSaga" as Saga
+participant "ValidateHandleStep" as ValidateStep
+participant "ReserveHandleStep" as ReserveStep
+participant "CreateChannelStep" as CreateStep
+participant "CommitHandleStep" as CommitStep
+participant "PublishEventsStep" as PublishStep
+participant "ChannelRepository" as ChannelRepo
+participant "HandleRegistry" as HandleRepo
+participant "ChannelMemberRepository" as MemberRepo
+participant "EventPublisher" as EventPub
+participant "CacheService" as Cache
+participant "ReservedWordsService" as Reserved
+database "PostgreSQL" as DB
+participant "Redis Cache" as Redis
+participant "Service Bus" as Messaging
 
-actor Creator
-participant "ChannelController" as C
-participant "ChannelService" as S
-participant "ChannelRepository" as Repo
-participant "OutboxEventPublisher" as Outbox
-participant "CosmosDB" as Cosmos
+Client -> APIGW: POST /channels {handle, title, description, language, country}
+APIGW -> Controller: request
+Controller -> Factory: createChannelCommand(ownerUserId, handle, title, description, language, country)
+Factory --> Controller: CreateChannelCommand
+Controller -> UseCase: createChannel(command)
+UseCase -> Handler: createChannel(command)
+Handler -> Saga: execute()
+activate Saga
 
-== Create Channel ==
-Creator -> C: POST /channels {name, branding}
-C -> S: createChannel(ownerId, name)
-S -> Repo: save(Channel)
-Repo -> Cosmos: create doc (partition channelId)
-Cosmos --> Repo: ok
-S -> Outbox: publish(ChannelCreated{channelId, ownerId})
-Outbox --> S: ack
-S --> Creator: 201 ChannelDTO
+note over Saga: **Saga Execution Started**\nSagaId: {sagaId}\nContext: {handleLower, ownerUserId}
 
-== Update Branding ==
-newpage Update Branding
-Creator -> C: PATCH /channels/{id}/branding {avatarUrl, bannerUrl}
-C -> S: updateBranding(id, branding)
-S -> Repo: updateBranding(id, branding)
-Repo -> Cosmos: patch doc
-Cosmos --> Repo: ok
-S -> Outbox: publish(ChannelUpdated{channelId, fields=branding})
-Outbox --> S: ack
-S --> Creator: 200 ChannelDTO
+Saga -> ValidateStep: execute(context)
+activate ValidateStep
+ValidateStep -> Reserved: isReserved(handleLower)
+Reserved --> ValidateStep: false (not reserved)
+note over ValidateStep: **Step 1: Handle Validation**\n✓ Format validation\n✓ Reserved words check\n✓ Availability check
+ValidateStep --> Saga: validation passed
+deactivate ValidateStep
 
-== Assign Role ==
-newpage Assign Role
-Creator -> C: POST /channels/{id}/roles {userId, role=Editor}
-C -> S: assignRole(id, userId, role)
-S -> Repo: assignRole(id, userId, role)
-Repo -> Cosmos: patch roles
-Cosmos --> Repo: ok
-S -> Outbox: publish(ChannelRoleChanged{channelId, userId, role})
-Outbox --> S: ack
-S --> Creator: 204
+Saga -> ReserveStep: execute(context)
+activate ReserveStep
+ReserveStep -> HandleRepo: reserve(handleLower, ownerUserId, TTL)
+HandleRepo -> DB: INSERT handle reservation
+DB --> HandleRepo: handle reserved
+HandleRepo --> ReserveStep: true (reserved)
+note over ReserveStep: **Step 2: Handle Reservation**\n✓ Reserve handle with TTL\n✓ Prevent concurrent reservations\n✓ Compensation: Release reservation
+ReserveStep --> Saga: handle reserved
+deactivate ReserveStep
+
+Saga -> CreateStep: execute(context)
+activate CreateStep
+CreateStep -> ChannelRepo: saveNew(channel)
+ChannelRepo -> DB: INSERT channel
+DB --> ChannelRepo: channel created
+ChannelRepo --> CreateStep: Channel entity
+note over CreateStep: **Step 3: Channel Creation**\n✓ Persist channel entity\n✓ Generate ULID\n✓ Set timestamps\n✓ Compensation: Delete channel
+CreateStep --> Saga: Channel entity
+deactivate CreateStep
+
+Saga -> CommitStep: execute(context)
+activate CommitStep
+CommitStep -> HandleRepo: commit(handleLower, channelId)
+HandleRepo -> DB: UPDATE handle status to COMMITTED
+DB --> HandleRepo: handle committed
+HandleRepo --> CommitStep: true (committed)
+note over CommitStep: **Step 4: Handle Commitment**\n✓ Commit handle reservation\n✓ Link handle to channel\n✓ Compensation: Release handle
+CommitStep --> Saga: handle committed
+deactivate CommitStep
+
+Saga -> PublishStep: execute(context)
+activate PublishStep
+PublishStep -> EventPub: publishChannelCreated(ChannelCreated event)
+EventPub -> Messaging: Publish to message queue
+Messaging --> EventPub: Event published
+EventPub --> PublishStep: Event published
+
+PublishStep -> Cache: putHandleMapping(handleLower, channelId)
+Cache -> Redis: SET handle mapping
+Redis --> Cache: Mapping cached
+Cache --> PublishStep: Mapping cached
+
+PublishStep -> MemberRepo: add(channelId, ownerUserId, OWNER)
+MemberRepo -> DB: INSERT channel member
+DB --> MemberRepo: Member added
+MemberRepo --> PublishStep: Member added
+note over PublishStep: **Step 5: Event Publishing**\n✓ Publish ChannelCreated event\n✓ Update cache\n✓ Add owner as member\n✓ Compensation: Remove from cache, remove member
+PublishStep --> Saga: Events published
+deactivate PublishStep
+
+note over Saga: **Saga Execution Completed Successfully**\nAll steps executed without errors\nNo compensation needed
+Saga --> Handler: Channel entity
+deactivate Saga
+
+Handler --> UseCase: Channel entity
+UseCase --> Controller: Channel entity
+Controller -> APIGW: 201 Created {Channel}
+APIGW -> Client: response
+
+note over Client, Messaging: **Success Flow Complete**\n✓ Channel created\n✓ Handle reserved and committed\n✓ Events published\n✓ Cache updated\n✓ Owner added as member
+
+== Change Handle (Clean Architecture + Saga Pattern) ==
+newpage
+actor Client
+participant "API Gateway" as APIGW
+participant "ChannelController" as Controller
+participant "CommandFactory" as Factory
+participant "ChannelUseCase" as UseCase
+participant "ChannelCommandHandler" as Handler
+participant "ChangeHandleSaga" as Saga
+participant "ValidateNewHandleStep" as ValidateStep
+participant "ReserveNewHandleStep" as ReserveStep
+participant "UpdateChannelStep" as UpdateStep
+participant "CommitNewHandleStep" as CommitStep
+participant "ReleaseOldHandleStep" as ReleaseStep
+participant "PublishEventsStep" as PublishStep
+participant "ChannelRepository" as ChannelRepo
+participant "HandleRegistry" as HandleRepo
+participant "EventPublisher" as EventPub
+participant "CacheService" as Cache
+participant "ReservedWordsService" as Reserved
+database "PostgreSQL" as DB
+participant "Redis Cache" as Redis
+participant "Service Bus" as Messaging
+
+Client -> APIGW: POST /channels/{id}/handle {newHandle}
+APIGW -> Controller: request (If-Match ETag)
+Controller -> Factory: changeHandleCommand(id, actorUserId, newHandle, etag, lastChangedAt)
+Factory --> Controller: ChangeHandleCommand
+Controller -> UseCase: changeHandle(command)
+UseCase -> Handler: changeHandle(command)
+Handler -> Saga: execute()
+activate Saga
+
+note over Saga: **Change Handle Saga Started**\nSagaId: {sagaId}\nContext: {channelId, actorUserId, newHandle, oldHandle, etag}
+
+Saga -> ValidateStep: execute(context)
+activate ValidateStep
+ValidateStep -> Reserved: isReserved(newHandleLower)
+Reserved --> ValidateStep: false (not reserved)
+ValidateStep -> ChannelRepo: findById(channelId)
+ChannelRepo -> DB: SELECT channel
+DB --> ChannelRepo: Channel entity
+ChannelRepo --> ValidateStep: Channel entity
+note over ValidateStep: **Step 1: Validate New Handle**\n✓ Format validation\n✓ Reserved words check\n✓ Availability check\n✓ Authorization check
+ValidateStep --> Saga: validation passed
+deactivate ValidateStep
+
+Saga -> ReserveStep: execute(context)
+activate ReserveStep
+ReserveStep -> HandleRepo: reserve(newHandleLower, actorUserId, TTL)
+HandleRepo -> DB: INSERT handle reservation
+DB --> HandleRepo: handle reserved
+HandleRepo --> ReserveStep: true (reserved)
+note over ReserveStep: **Step 2: Reserve New Handle**\n✓ Reserve new handle with TTL\n✓ Compensation: Release new handle
+ReserveStep --> Saga: new handle reserved
+deactivate ReserveStep
+
+Saga -> UpdateStep: execute(context)
+activate UpdateStep
+UpdateStep -> ChannelRepo: updateHandle(channelId, oldHandleLower, newHandleLower, etag, newVersion, now)
+ChannelRepo -> DB: UPDATE channel handle
+DB --> ChannelRepo: channel updated
+ChannelRepo --> UpdateStep: Updated Channel
+note over UpdateStep: **Step 3: Update Channel**\n✓ Update channel handle\n✓ Increment version\n✓ Compensation: Revert handle
+UpdateStep --> Saga: channel updated
+deactivate UpdateStep
+
+Saga -> CommitStep: execute(context)
+activate CommitStep
+CommitStep -> HandleRepo: commit(newHandleLower, channelId)
+HandleRepo -> DB: UPDATE handle status to COMMITTED
+DB --> HandleRepo: handle committed
+HandleRepo --> CommitStep: true (committed)
+note over CommitStep: **Step 4: Commit New Handle**\n✓ Commit new handle reservation\n✓ Compensation: Release new handle
+CommitStep --> Saga: new handle committed
+deactivate CommitStep
+
+Saga -> ReleaseStep: execute(context)
+activate ReleaseStep
+ReleaseStep -> HandleRepo: release(oldHandleLower)
+HandleRepo -> DB: DELETE old handle
+DB --> HandleRepo: old handle released
+HandleRepo --> ReleaseStep: true (released)
+note over ReleaseStep: **Step 5: Release Old Handle**\n✓ Release old handle\n✓ Compensation: Re-reserve old handle
+ReleaseStep --> Saga: old handle released
+deactivate ReleaseStep
+
+Saga -> PublishStep: execute(context)
+activate PublishStep
+PublishStep -> EventPub: publishChannelHandleChanged(ChannelHandleChanged event)
+EventPub -> Messaging: Publish to message queue
+Messaging --> EventPub: Event published
+EventPub --> PublishStep: Event published
+
+PublishStep -> Cache: invalidateHandleMapping(oldHandleLower)
+Cache -> Redis: DELETE old handle mapping
+Redis --> Cache: Old mapping invalidated
+Cache --> PublishStep: Old mapping invalidated
+
+PublishStep -> Cache: putHandleMapping(newHandleLower, channelId)
+Cache -> Redis: SET new handle mapping
+Redis --> Cache: New mapping cached
+Cache --> PublishStep: New mapping cached
+note over PublishStep: **Step 6: Publish Events**\n✓ Publish ChannelHandleChanged event\n✓ Invalidate old cache\n✓ Update new cache\n✓ Compensation: Restore old cache
+PublishStep --> Saga: Events published
+deactivate PublishStep
+
+note over Saga: **Change Handle Saga Completed**\nAll steps executed successfully\nHandle changed with full compensation support
+Saga --> Handler: Updated Channel
+deactivate Saga
+
+Handler --> UseCase: Updated Channel
+UseCase --> Controller: Updated Channel
+Controller -> APIGW: 200 OK {Channel}
+APIGW -> Client: response
+
+== Branding Update (Clean Architecture) ==
+newpage
+actor Client
+participant "API Gateway" as APIGW
+participant "ChannelController" as Controller
+participant "CommandFactory" as Factory
+participant "ChannelUseCase" as UseCase
+participant "ChannelCommandHandler" as Handler
+participant "UpdateBrandingSaga" as Saga
+participant "AuthorizeStep" as AuthStep
+participant "ValidateUrisStep" as ValidateStep
+participant "UpdateChannelStep" as UpdateStep
+participant "PublishEventsStep" as PublishStep
+participant "ChannelRepository" as ChannelRepo
+participant "BlobUriValidator" as BlobValidator
+participant "EventPublisher" as EventPub
+database "PostgreSQL" as DB
+participant "Service Bus" as Messaging
+
+Client -> APIGW: POST /channels/{id}/branding {avatarUri, bannerUri, accentColor}
+APIGW -> Controller: request (If-Match ETag)
+Controller -> Factory: updateBrandingCommand(id, actorUserId, branding, etag)
+Factory --> Controller: UpdateBrandingCommand
+Controller -> UseCase: updateBranding(command)
+UseCase -> Handler: updateBranding(command)
+Handler -> Saga: execute()
+activate Saga
+
+note over Saga: **Update Branding Saga Started**\nSagaId: {sagaId}\nContext: {channelId, actorUserId, branding, etag}
+
+Saga -> AuthStep: execute(context)
+activate AuthStep
+AuthStep -> ChannelRepo: findById(channelId)
+ChannelRepo -> DB: SELECT channel
+DB --> ChannelRepo: Channel entity
+ChannelRepo --> AuthStep: Channel entity
+note over AuthStep: **Step 1: Authorization**\n✓ Check MANAGER or OWNER role\n✓ Validate actor permissions
+AuthStep --> Saga: authorization passed
+deactivate AuthStep
+
+Saga -> ValidateStep: execute(context)
+activate ValidateStep
+ValidateStep -> BlobValidator: validate(avatarUri)
+BlobValidator --> ValidateStep: validation passed
+ValidateStep -> BlobValidator: validate(bannerUri)
+BlobValidator --> ValidateStep: validation passed
+note over ValidateStep: **Step 2: URI Validation**\n✓ Validate avatar URI\n✓ Validate banner URI\n✓ Check allowed origins
+ValidateStep --> Saga: validation passed
+deactivate ValidateStep
+
+Saga -> UpdateStep: execute(context)
+activate UpdateStep
+UpdateStep -> ChannelRepo: updateBranding(existing, branding, etag)
+ChannelRepo -> DB: UPDATE channel branding
+DB --> ChannelRepo: channel updated
+ChannelRepo --> UpdateStep: Updated Channel
+note over UpdateStep: **Step 3: Update Channel**\n✓ Update channel branding\n✓ Increment version\n✓ Compensation: Revert branding
+UpdateStep --> Saga: channel updated
+deactivate UpdateStep
+
+Saga -> PublishStep: execute(context)
+activate PublishStep
+PublishStep -> EventPub: publishChannelUpdated(channelId, "branding")
+EventPub -> Messaging: Publish to message queue
+Messaging --> EventPub: Event published
+EventPub --> PublishStep: Event published
+note over PublishStep: **Step 4: Publish Events**\n✓ Publish ChannelUpdated event\n✓ Compensation: None (eventual consistency)
+PublishStep --> Saga: Events published
+deactivate PublishStep
+
+note over Saga: **Update Branding Saga Completed**\nAll steps executed successfully\nBranding updated with compensation support
+Saga --> Handler: Updated Channel
+deactivate Saga
+
+Handler --> UseCase: Updated Channel
+UseCase --> Controller: Updated Channel
+Controller -> APIGW: 200 OK {Channel}
+APIGW -> Client: response
+
+== Set Member Role (Clean Architecture) ==
+newpage
+actor Client
+participant "API Gateway" as APIGW
+participant "ChannelController" as Controller
+participant "CommandFactory" as Factory
+participant "ChannelUseCase" as UseCase
+participant "ChannelCommandHandler" as Handler
+participant "SetMemberRoleSaga" as Saga
+participant "AuthorizeStep" as AuthStep
+participant "ValidateRoleStep" as ValidateStep
+participant "UpdateMemberStep" as UpdateStep
+participant "PublishEventsStep" as PublishStep
+participant "ChannelMemberRepository" as MemberRepo
+participant "EventPublisher" as EventPub
+participant "CacheService" as Cache
+database "PostgreSQL" as DB
+participant "Redis Cache" as Redis
+participant "Service Bus" as Messaging
+
+Client -> APIGW: PATCH /channels/{id}/members/{userId}/role {role}
+APIGW -> Controller: request
+Controller -> Factory: setMemberRoleCommand(id, actorUserId, targetUserId, newRole)
+Factory --> Controller: SetMemberRoleCommand
+Controller -> UseCase: setMemberRole(command)
+UseCase -> Handler: setMemberRole(command)
+Handler -> Saga: execute()
+activate Saga
+
+note over Saga: **Set Member Role Saga Started**\nSagaId: {sagaId}\nContext: {channelId, actorUserId, targetUserId, newRole}
+
+Saga -> AuthStep: execute(context)
+activate AuthStep
+AuthStep -> MemberRepo: roleOf(channelId, actorUserId)
+MemberRepo -> DB: SELECT member role
+DB --> MemberRepo: Actor role
+MemberRepo --> AuthStep: Actor role (e.g., OWNER)
+note over AuthStep: **Step 1: Authorization**\n✓ Check actor permissions\n✓ Validate role hierarchy\n✓ Prevent unauthorized changes
+AuthStep --> Saga: authorization passed
+deactivate AuthStep
+
+Saga -> ValidateStep: execute(context)
+activate ValidateStep
+ValidateStep -> MemberRepo: roleOf(channelId, targetUserId)
+MemberRepo -> DB: SELECT target member role
+DB --> MemberRepo: Target role or null
+MemberRepo --> ValidateStep: Target role
+note over ValidateStep: **Step 2: Role Validation**\n✓ Validate role transitions\n✓ Prevent OWNER demotion\n✓ Check role hierarchy rules
+ValidateStep --> Saga: validation passed
+deactivate ValidateStep
+
+Saga -> UpdateStep: execute(context)
+activate UpdateStep
+UpdateStep -> MemberRepo: updateRole(channelId, targetUserId, newRole)
+MemberRepo -> DB: UPDATE or INSERT member role
+DB --> MemberRepo: Member updated
+MemberRepo --> UpdateStep: Old role (Optional)
+note over UpdateStep: **Step 3: Update Member Role**\n✓ Update or create member role\n✓ Compensation: Restore old role
+UpdateStep --> Saga: member updated
+deactivate UpdateStep
+
+Saga -> PublishStep: execute(context)
+activate PublishStep
+PublishStep -> EventPub: publishMemberRoleChanged(ChannelMemberRoleChanged event)
+EventPub -> Messaging: Publish to message queue
+Messaging --> EventPub: Event published
+EventPub --> PublishStep: Event published
+
+PublishStep -> Cache: invalidatePermissions(channelId, targetUserId)
+Cache -> Redis: DELETE permission cache
+Redis --> Cache: Permissions invalidated
+Cache --> PublishStep: Permissions invalidated
+note over PublishStep: **Step 4: Publish Events**\n✓ Publish ChannelMemberRoleChanged event\n✓ Invalidate permission cache\n✓ Compensation: Restore cache
+PublishStep --> Saga: Events published
+deactivate PublishStep
+
+note over Saga: **Set Member Role Saga Completed**\nAll steps executed successfully\nMember role updated with compensation support
+Saga --> Handler: void
+deactivate Saga
+
+Handler --> UseCase: void
+UseCase --> Controller: void
+Controller -> APIGW: 204 No Content
+APIGW -> Client: response
 
 @enduml
