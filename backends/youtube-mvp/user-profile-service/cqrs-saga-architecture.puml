@@ -1,0 +1,44 @@
+@startuml
+title User Profile Service - CQRS and Saga Architecture
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+package "CQRS" {
+    class WriteModel
+    class ReadModel
+    WriteModel -> ReadModel : Events
+}
+
+package "Saga Pattern" {
+    class UpdateProfileSaga
+    class SagaStep
+    UpdateProfileSaga *-- SagaStep
+}
+
+package "Clean Architecture" {
+    package "Interface" {
+        class ProfileController
+    }
+    
+    package "Application" {
+        class ProfileUseCase
+        class UpdateProfileSaga
+    }
+    
+    package "Domain" {
+        class AccountProfile
+        class ProfileRepository
+    }
+    
+    package "Infrastructure" {
+        class ProfileRepositoryImpl
+    }
+    
+    ProfileController --> ProfileUseCase
+    ProfileUseCase --> UpdateProfileSaga
+    UpdateProfileSaga --> ProfileRepository
+    ProfileRepository <|.. ProfileRepositoryImpl
+}
+
+@enduml

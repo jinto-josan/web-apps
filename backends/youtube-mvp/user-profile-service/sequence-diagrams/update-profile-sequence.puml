@@ -1,0 +1,110 @@
+@startuml
+title Update Profile Saga - Sequence Diagram
+
+skinparam shadowing false
+skinparam fontName "Helvetica"
+skinparam titleFontName "Helvetica"
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam participantBorderColor darkblue
+skinparam arrowColor black
+skinparam arrowThickness 2
+
+actor Client
+participant "API Gateway" as APIGW
+participant "ProfileController" as Controller
+participant "ProfileUseCase" as UseCase
+participant "UpdateProfileSaga" as Saga
+participant "LoadProfileStep" as LoadStep
+participant "ValidatePhotoUrlStep" as ValidateStep
+participant "UpdateProfileStep" as UpdateStep
+participant "PublishEventsStep" as PublishStep
+participant "ProfileRepository" as ProfileRepo
+participant "EventPublisher" as EventPub
+participant "CacheService" as Cache
+participant "BlobUriValidator" as BlobValidator
+database "PostgreSQL" as DB
+participant "Redis Cache" as Redis
+participant "Kafka" as Kafka
+
+Client -> APIGW: PATCH /profiles/{accountId}\n{\n  "displayName": "John Doe",\n  "locale": "en-US",\n  "timezone": "America/New_York"\n}\nIf-Match: "etag-value"
+activate Client
+
+APIGW -> Controller: request with JWT token
+activate Controller
+
+Controller -> UseCase: updateProfile(command, userId)
+activate UseCase
+
+UseCase -> Saga: execute()
+activate Saga
+
+note over Saga: **Saga Execution Started**\nSagaId: {sagaId}\nAccount: {accountId}
+
+Saga -> LoadStep: execute(context)
+activate LoadStep
+LoadStep -> ProfileRepo: findByAccountId(accountId)
+activate ProfileRepo
+ProfileRepo -> DB: SELECT * FROM account_profiles\nWHERE account_id = ?
+activate DB
+DB --> ProfileRepo: profile data
+deactivate DB
+deactivate ProfileRepo
+deactivate LoadStep
+
+note over LoadStep: Validate ETag for optimistic locking
+
+Saga -> ValidateStep: execute(context)
+activate ValidateStep
+ValidateStep -> BlobValidator: isValid(photoUrl)
+BlobValidator --> ValidateStep: true
+deactivate ValidateStep
+
+Saga -> UpdateStep: execute(context)
+activate UpdateStep
+UpdateStep -> ProfileRepo: update(profile, newEtag)
+activate ProfileRepo
+ProfileRepo -> DB: UPDATE account_profiles\nSET display_name = ?,\n    locale = ?,\n    timezone = ?,\n    version = version + 1,\n    etag = ?,\n    updated_at = ?\nWHERE account_id = ?\nAND version = ?
+activate DB
+DB --> ProfileRepo: 1 row affected
+deactivate DB
+deactivate ProfileRepo
+deactivate UpdateStep
+
+Saga -> PublishStep: execute(context)
+activate PublishStep
+PublishStep -> EventPub: publishProfileUpdated(event)
+activate EventPub
+EventPub -> Kafka: publish(ProfileUpdated)
+activate Kafka
+Kafka --> EventPub: acknowledged
+deactivate Kafka
+deactivate EventPub
+
+PublishStep -> Cache: invalidateProfile(accountId)
+activate Cache
+Cache -> Redis: DEL profile:{accountId}
+activate Redis
+Redis --> Cache: success
+deactivate Redis
+deactivate Cache
+deactivate PublishStep
+
+Saga --> UseCase: updated profile
+deactivate Saga
+
+UseCase --> Controller: AccountProfile
+deactivate UseCase
+
+Controller --> APIGW: 200 OK\nETag: "new-etag"\n{ profile }
+deactivate Controller
+
+APIGW --> Client: response
+deactivate APIGW
+
+deactivate Client
+
+note over Client, Kafka: **Success Path Complete**\nProfile updated, events published,\ncache invalidated
+
+@enduml
+

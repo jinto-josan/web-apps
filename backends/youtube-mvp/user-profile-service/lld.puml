@@ -1,5 +1,5 @@
 @startuml
-title User Profile Service - LLD
+title User Profile Service - Low-Level Design
 
 skinparam shadowing false
 skinparam packageStyle rectangle
@@ -15,78 +15,146 @@ skinparam classBackgroundColor white
 skinparam classBorderColor black
 skinparam interfaceBackgroundColor lightgreen
 skinparam interfaceBorderColor black
-skinparam enumBackgroundColor lightyellow
-skinparam enumBorderColor black
-skinparam arrowColor black
-skinparam arrowThickness 2
 
-
-package "UserProfileService" {
-class ProfileController {
-+GET /users/{id}/profile
-+PATCH /users/{id}/profile
-+GET /users/{id}/settings
-+PATCH /users/{id}/settings
-+GET /users/{id}/preferences
-+PATCH /users/{id}/preferences
+package "Domain Layer (Core)" <<clean>> {
+    class AccountProfile {
+        -accountId: String
+        -displayName: String
+        -photoUrl: String
+        -locale: String
+        -country: String
+        -timezone: String
+        -privacySettings: PrivacySettings
+        -notificationSettings: NotificationSettings
+        -accessibilityPreferences: AccessibilityPreferences
+        -version: int
+        -etag: String
+    }
+    
+    class PrivacySettings {
+        -subscriptionsPrivate: Boolean
+        -savedPlaylistsPrivate: Boolean
+        -restrictedModeEnabled: Boolean
+    }
+    
+    class NotificationSettings {
+        -emailOptIn: Boolean
+        -pushOptIn: Boolean
+        -marketingOptIn: Boolean
+    }
+    
+    class AccessibilityPreferences {
+        -captionsAlwaysOn: Boolean
+        -autoplayDefault: Boolean
+    }
+    
+    interface ProfileRepository {
+        +findByAccountId(accountId): Optional<AccountProfile>
+        +save(profile): AccountProfile
+        +update(profile): AccountProfile
+        +exists(accountId): boolean
+        +delete(accountId): void
+    }
+    
+    interface EventPublisher {
+        +publishProfileUpdated(event): void
+        +publishPrivacySettingsChanged(event): void
+        +publishNotificationPrefsChanged(event): void
+    }
+    
+    interface CacheService {
+        +cacheProfile(accountId, data): void
+        +getCachedProfile(accountId): String
+        +invalidateProfile(accountId): void
+    }
 }
 
-class UserProfileService {
-+getProfile(userId): UserProfileDTO
-+updateProfile(userId, dto): UserProfileDTO
-+getSettings(userId): SettingsDTO
-+updateSettings(userId, dto): SettingsDTO
-+getPreferences(userId): PreferencesDTO
-+updatePreferences(userId, dto): PreferencesDTO
+package "Application Layer" <<clean>> {
+    interface Saga {
+        +execute(): AccountProfile
+        +getSagaId(): String
+        +getSagaType(): String
+    }
+    
+    class UpdateProfileSaga {
+        -sagaId: String
+        -command: UpdateProfileCommand
+        -execute(): AccountProfile
+        -compensate(): void
+    }
+    
+    class UpdateProfileCommand {
+        -accountId: String
+        -displayName: String
+        -photoUrl: String
+        -etag: String
+    }
+    
+    class GetProfileQuery {
+        -accountId: String
+    }
+    
+    interface ProfileUseCase {
+        +updateProfile(command): AccountProfile
+        +getProfile(query): AccountProfile
+        +updatePrivacySettings(command): PrivacySettings
+        +getPrivacySettings(query): PrivacySettings
+    }
 }
 
-class UserProfileRepository {
-+findByUserId(userId): Optional
-+save(profile: UserProfile): void
-+updateSettings(userId, settings: Settings): void
-+updatePreferences(userId, prefs: Preferences): void
+package "Infrastructure Layer" <<clean>> {
+    class ProfileEntity {
+        -id: Long
+        -accountId: String
+        -displayName: String
+        -privacySettings: PrivacySettingsEmbeddable
+        -notificationSettings: NotificationSettingsEmbeddable
+        -accessibilityPreferences: AccessibilityPreferencesEmbeddable
+    }
+    
+    class ProfileRepositoryImpl {
+        +findByAccountId(accountId): Optional<AccountProfile>
+        +update(profile): AccountProfile
+    }
+    
+    class EventPublisherImpl {
+        +publishProfileUpdated(event): void
+    }
+    
+    class CacheServiceImpl {
+        +cacheProfile(accountId, data): void
+        +invalidateProfile(accountId): void
+    }
+    
+    class SecurityConfig {
+        +securityFilterChain(): SecurityFilterChain
+        +jwtAuthConverter(): Converter
+    }
 }
 
-class UserProfile {
--userId: UUID
--attributes: Map<String, String>
--settings: Settings
--preferences: Preferences
--updatedAt: Instant
+package "Interface Layer" <<clean>> {
+    class ProfileController {
+        +GET /profiles/{accountId}
+        +PATCH /profiles/{accountId}
+        +GET /profiles/{accountId}/privacy
+        +PUT /profiles/{accountId}/privacy
+        +GET /profiles/{accountId}/notifications
+        +PUT /profiles/{accountId}/notifications
+    }
 }
 
-class Settings {
--privacy: String
--notifications: Map<String, Boolean>
--language: String
-}
+' Relationships
+ProfileController --> ProfileUseCase
+ProfileUseCase --> UpdateProfileSaga
+UpdateProfileSaga --> ProfileRepository
+UpdateProfileSaga --> EventPublisher
+UpdateProfileSaga --> CacheService
 
-class Preferences {
--topics: List
--theme: String
--autoplay: boolean
-}
+ProfileRepository <|.. ProfileRepositoryImpl
+EventPublisher <|.. EventPublisherImpl
+CacheService <|.. CacheServiceImpl
 
-class OutboxEventPublisher {
-+publish(event: DomainEvent)
-}
-
-class DomainEvent {
--type: String
--payloadJson: String
--occurredAt: Instant
-}
-}
-
-package "Azure Integrations" {
-class CosmosDB
-class AzureServiceBusTopic
-}
-
-ProfileController --> UserProfileService
-UserProfileService --> UserProfileRepository
-UserProfileService --> OutboxEventPublisher : "ProfileUpdated / SettingsUpdated / PreferencesUpdated"
-UserProfileRepository ..> CosmosDB
-OutboxEventPublisher ..> AzureServiceBusTopic
+' Domain to Infrastructure
+ProfileEntity <-- ProfileRepositoryImpl
 
 @enduml
