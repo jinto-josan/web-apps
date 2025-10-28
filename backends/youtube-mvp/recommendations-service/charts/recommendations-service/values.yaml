@@ -1,0 +1,52 @@
+replicaCount: 3
+
+image:
+  repository: <REGISTRY>/recommendations-service
+  pullPolicy: Always
+  tag: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+probes:
+  liveness:
+    initialDelaySeconds: 60
+    periodSeconds: 30
+  readiness:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  startup:
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    failureThreshold: 30
+
+podAnnotations: {}
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+database:
+  secretName: recommendations-secrets
+
+redis:
+  host: redis-service
+  port: 6379
+
+imagePullSecrets: []
+

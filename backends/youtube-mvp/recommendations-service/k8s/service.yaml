@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: recommendations-service
+  namespace: default
+  labels:
+    app: recommendations-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: recommendations-service
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: recommendations-service-headless
+  namespace: default
+  labels:
+    app: recommendations-service
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: recommendations-service
+

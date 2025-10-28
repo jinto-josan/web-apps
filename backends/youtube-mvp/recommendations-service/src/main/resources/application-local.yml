@@ -1,0 +1,41 @@
+# Local development configuration with emulators
+
+spring:
+  # Use emulator endpoints for local development
+  datasource:
+    url: jdbc:postgresql://localhost:5432/recommendations
+    username: postgres
+    password: postgres
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+  
+  azure:
+    cosmos:
+      endpoint: https://localhost:8081/
+      key: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==
+      database: recommendations
+      enabled: true
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9000
+          jwk-set-uri: http://localhost:9000/.well-known/jwks.json
+
+# Disable security for local testing
+security:
+  enabled: false
+
+# Development logging
+logging:
+  level:
+    root: INFO
+    com.youtube.recommendationsservice: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate: DEBUG
+

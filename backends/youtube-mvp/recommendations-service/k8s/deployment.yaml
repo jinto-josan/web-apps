@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recommendations-service
+  namespace: default
+  labels:
+    app: recommendations-service
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: recommendations-service
+  template:
+    metadata:
+      labels:
+        app: recommendations-service
+        version: v1
+    spec:
+      containers:
+      - name: recommendations-service
+        image: <REGISTRY>/recommendations-service:<VERSION>
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: recommendations-secrets
+              key: database-url
+        - name: DATABASE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: recommendations-secrets
+              key: database-username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: recommendations-secrets
+              key: database-password
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: AZURE_COSMOS_URI
+          valueFrom:
+            secretKeyRef:
+              name: recommendations-secrets
+              key: cosmos-uri
+        - name: AZURE_COSMOS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: recommendations-secrets
+              key: cosmos-key
+        - name: JWT_ISSUER_URI
+          valueFrom:
+            configMapKeyRef:
+              name: recommendations-config
+              key: jwt-issuer-uri
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        startupProbe:
+          httpGet:
+            path: /actuator/health/startup
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          failureThreshold: 30
+      imagePullSecrets:
+      - name: registry-secret
+
