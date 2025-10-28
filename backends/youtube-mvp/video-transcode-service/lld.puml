@@ -1,94 +1,263 @@
 @startuml
-title Video Transcode Service - LLD
+title Media Processing Service - Unified Transcoding, Thumbnails & DRM (Azure Media Services)
 
 skinparam shadowing false
 skinparam packageStyle rectangle
 skinparam classAttributeIconSize 0
 skinparam fontName "Helvetica"
 skinparam titleFontName "Helvetica"
-skinparam legendFontName "Helvetica"
-skinparam noteFontName "Helvetica"
 skinparam backgroundColor white
 skinparam packageBackgroundColor lightblue
-skinparam packageBorderColor darkblue
 skinparam classBackgroundColor white
-skinparam classBorderColor black
 skinparam interfaceBackgroundColor lightgreen
-skinparam interfaceBorderColor black
-skinparam enumBackgroundColor lightyellow
-skinparam enumBorderColor black
 skinparam arrowColor black
-skinparam arrowThickness 2
 
+package "VideoTranscodeService (Unified)" {
 
-package "VideoTranscodeService" {
-class VideoUploadedConsumer {
-+onVideoUploaded(event)
+  ' Event Consumers
+  class VideoUploadedConsumer {
+    +onVideoUploaded(event: VideoUploadedEvent)
+  }
+  
+  ' Core Orchestration
+  class MediaProcessingOrchestrator {
+    +startProcessing(videoId, inputBlob): ProcessingJob
+    +monitorEncodingJob(jobId): JobStatus
+    +processThumbnails(assetId): List<Thumbnail>
+    +packageStreamingAssets(assetId): PackagingResult
+    +applyDRMProtection(assetId): DRMResult
+    +emitCompletionEvents(videoId, result): void
+  }
+  
+  ' Domain Layer
+  package "Application Layer" {
+    class StartTranscodeCommand {
+      +videoId: UUID
+      +inputBlobUrl: String
+      +userId: UUID
+    }
+    
+    class TranscodeCompletedEvent {
+      +videoId: UUID
+      +assetId: String
+      +hlsUrl: String
+      +dashUrl: String
+      +thumbnails: List<Thumbnail>
+      +drmKeys: Map<String, String>
+    }
+  }
+  
+  package "Domain Layer" {
+    class MediaProcessingJob {
+      +jobId: String
+      +videoId: UUID
+      +status: ProcessingStatus
+      +startTime: Instant
+      +endTime: Instant
+      +metadata: Map<String, String>
+    }
+    
+    class Thumbnail {
+      +thumbnailId: UUID
+      +videoId: UUID
+      +url: String
+      +timeCode: String
+      +size: ThumbnailSize
+      +selected: boolean
+      +createdAt: Instant
+    }
+    
+    class DRMKey {
+      +contentKeyId: String
+      +videoId: UUID
+      +drmType: DRMType
+      +keyIdentifier: String
+      +encryptionConfig: Map<String, String>
+    }
+    
+    enum ProcessingStatus {
+      QUEUED
+      ENCODING
+      PACKAGING
+      DRM_PROCESSING
+      THUMBNAIL_GENERATING
+      COMPLETED
+      FAILED
+    }
+    
+    enum DRMType {
+      WIDEVINE
+      FAIRPLAY
+      PLAYREADY
+      CLEAR_KEY
+    }
+    
+    enum ThumbnailSize {
+      SMALL
+      MEDIUM
+      LARGE
+    }
+    
+    interface MediaProcessingRepository {
+      +save(job: MediaProcessingJob): void
+      +findById(jobId: String): MediaProcessingJob
+      +findByVideoId(videoId: UUID): List<MediaProcessingJob>
+      +updateStatus(jobId: String, status: ProcessingStatus): void
+    }
+    
+    interface ThumbnailRepository {
+      +save(thumbnail: Thumbnail): void
+      +findByVideoId(videoId: UUID): List<Thumbnail>
+      +setSelected(videoId: UUID, thumbnailId: UUID): void
+    }
+    
+    interface DRMKeyRepository {
+      +save(drmKey: DRMKey): void
+      +findByVideoId(videoId: UUID): List<DRMKey>
+      +findById(keyId: String): DRMKey
+    }
+  }
+  
+  ' Infrastructure - Azure Media Services Integration
+  package "Infrastructure Layer" {
+    interface AzureMediaServicesAdapter {
+      +createTransform(config: TransformConfig): String
+      +submitEncodingJob(transformId: String, inputAssetId: String): String
+      +getJobStatus(jobId: String): JobStatus
+      +waitForJobCompletion(jobId: String): JobResult
+      +generateThumbnails(assetId: String, positions: List<String>): List<String>
+      +packagingHlsDash(assetId: String): PackagingResult
+      +applyDRMProtection(assetId: String): DRMConfiguration
+      +getStreamingLocatorUrl(assetId: String): String
+    }
+    
+    class AzureMediaServicesClient {
+      -mediaServicesClient: MediaServicesClient
+      +createTransform(config): String
+      +submitJob(transformId, inputAssetId): String
+      +getJobStatus(jobId): JobStatus
+      +waitForCompletion(jobId): JobResult
+      +generateThumbnails(assetId, positions): List<String>
+      +packageForStreaming(assetId): PackagingResult
+      +applyDRMProtection(assetId): DRMConfiguration
+    }
+    
+    class BlobStorageClient {
+      -blobClient: BlobClient
+      +uploadAsset(container: String, blobName: String, content: InputStream): String
+      +downloadAsset(blobUrl: String): byte[]
+      +copyAsset(source: String, destination: String): void
+      +deleteAsset(blobUrl: String): void
+    }
+    
+    class StreamingEndpointClient {
+      -endpointUrl: String
+      +getHlsManifestUrl(assetId: String): String
+      +getDashManifestUrl(assetId: String): String
+      +createStreamingLocator(assetId: String): String
+    }
+    
+    class DRMKeyVaultClient {
+      -keyVaultClient: KeyClient
+      +storeContentKey(contentKeyId: String, key: byte[]): void
+      +retrieveContentKey(contentKeyId: String): byte[]
+      +signLicense(license: byte[]): byte[]
+    }
+    
+    class OutboxPatternEventPublisher {
+      +publishEvent(event: DomainEvent): void
+      +getPendingEvents(): List<DomainEvent>
+      +markEventPublished(eventId: UUID): void
+    }
+  }
 }
 
-class TranscodeOrchestrator {
-+startTranscode(videoId, inputBlob): JobId
-+monitorJob(jobId): JobStatus
-+packageRenditions(assetId): PackagingResult
-+prepareDRM(assetId): DRMResult
-+emitResults(videoId, assetId, thumbnails, manifests): void
+' External Azure Services
+package "Azure Media Services" {
+  class AzureMediaServices_Platform {
+    +Transforms API
+    +Jobs API
+    +Assets API
+    +Streaming Endpoints
+    +Content Key Policies
+  }
+  
+  class AzureBlobStorage {
+    +Assets Container
+    +Transcoded Files
+    +Thumbnail Storage
+  }
+  
+  class AzureKeyVault {
+    +Content Keys
+    +Licenses
+    +Signing Keys
+  }
+  
+  class AzureServiceBus {
+    +Events Topic
+    +Notifications
+  }
 }
 
-interface AMSAdapter {
-+submitEncodingJob(inputBlob): JobId
-+getJobStatus(jobId): JobStatus
-+getAssetId(jobId): String
+package "Event Flow" {
+  class VideoUploadedEvent {
+    +videoId: UUID
+    +inputBlobUrl: String
+    +userId: UUID
+    +timestamp: Instant
+  }
+  
+  class MediaProcessingCompletedEvent {
+    +videoId: UUID
+    +assetId: String
+    +hlsUrl: String
+    +dashUrl: String
+    +thumbnails: List<Thumbnail>
+    +drmConfig: Map<String, String>
+    +processingTime: Duration
+  }
+  
+  class ThumbnailGeneratedEvent {
+    +videoId: UUID
+    +thumbnails: List<Thumbnail>
+  }
 }
 
-interface PackagerAdapter {
-+packageHlsDash(assetId): PackagingResult
-}
+' Relationships
+VideoUploadedConsumer --> MediaProcessingOrchestrator : triggers processing
 
-class ThumbnailService {
-+generateThumbnails(assetId): List
-}
+MediaProcessingOrchestrator --> AzureMediaServicesAdapter : uses
+MediaProcessingOrchestrator --> MediaProcessingRepository : persists
+MediaProcessingOrchestrator --> ThumbnailRepository : persists
+MediaProcessingOrchestrator --> DRMKeyRepository : persists
+MediaProcessingOrchestrator --> OutboxPatternEventPublisher : publishes events
 
-class Thumbnail {
--url: String
--timeSec: int
-}
-class PackagingResult {
--hlsUrl: String
--dashUrl: String
-}
-class DRMResult {
--keys: Map<String, String>
--licenses: Map<String, String>
-}
+AzureMediaServicesAdapter <|.. AzureMediaServicesClient : implements
+AzureMediaServicesClient ..> AzureMediaServices_Platform : calls API
+AzureMediaServicesClient --> BlobStorageClient : uses
+AzureMediaServicesClient --> StreamingEndpointClient : uses
+AzureMediaServicesClient --> DRMKeyVaultClient : uses
 
-class OutboxEventPublisher {
-+publish(event: DomainEvent)
-}
+BlobStorageClient ..> AzureBlobStorage : stores/retrieves
+DRMKeyVaultClient ..> AzureKeyVault : manages keys
+OutboxPatternEventPublisher ..> AzureServiceBus : publishes
 
-enum JobStatus {
-QUEUED
-PROCESSING
-FINISHED
-FAILED
-}
-class DomainEvent {}
-}
+MediaProcessingOrchestrator ..> VideoUploadedEvent : consumes
+MediaProcessingOrchestrator ..> MediaProcessingCompletedEvent : emits
+MediaProcessingOrchestrator ..> ThumbnailGeneratedEvent : emits
 
-package "Azure Integrations" {
-class AzureMediaServices
-class ShakaPackager
-class BlobStorage
-class AzureServiceBusTopic
-}
+MediaProcessingRepository --> ProcessingStatus : uses
+ThumbnailRepository --> Thumbnail : manages
+DRMKeyRepository --> DRMKey : manages
 
-VideoUploadedConsumer --> TranscodeOrchestrator
-TranscodeOrchestrator --> AMSAdapter
-TranscodeOrchestrator --> PackagerAdapter
-TranscodeOrchestrator --> ThumbnailService
-AMSAdapter ..> AzureMediaServices
-PackagerAdapter ..> ShakaPackager
-ThumbnailService ..> BlobStorage
-TranscodeOrchestrator --> OutboxEventPublisher : "TranscodeCompleted / ThumbnailGenerated"
-OutboxEventPublisher ..> AzureServiceBusTopic
+note right of MediaProcessingOrchestrator
+  Clean Architecture Design:
+  - Orchestrator: Coordinates all media processing steps
+  - Azure Media Services: Managed encoding, streaming, DRM
+  - Repository Pattern: Data access abstraction
+  - Outbox Pattern: Event publishing reliability
+  - Observer Pattern: Job status monitoring
+end note
 
 @enduml

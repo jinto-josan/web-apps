@@ -60,9 +60,7 @@
         
         <!-- Content & Streaming Services -->
         <module>streaming-session-service</module>
-        <module>drm-license-service</module>
         <module>captions-subtitles-service</module>
-        <module>thumbnail-service</module>
         <module>content-id-service</module>
         <module>policy-enforcement-service</module>
         <module>moderation-service</module>

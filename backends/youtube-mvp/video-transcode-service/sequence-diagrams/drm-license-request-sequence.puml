@@ -1,0 +1,79 @@
+@startuml
+title Media Processing Service - DRM License Request Sequence
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam arrowColor black
+
+participant "Client Player" as Player
+participant "DRM Controller" as Controller
+participant "DRMLicenseService" as Service
+participant "DRMKeyRepository" as Repo
+participant "DRMKeyVaultClient" as KeyVault
+participant "Azure Key Vault" as AzureKV
+participant "OutboxEventPublisher" as Outbox
+participant "Service Bus" as Bus
+
+== DRM License Request ==
+Player -> Controller: POST /api/drm/license\n{contentKeyId, challenge, deviceInfo}
+activate Controller
+
+Controller -> Service: issueLicense(contentKeyId, challenge, deviceInfo)
+activate Service
+
+Service -> Repo: findById(contentKeyId)
+activate Repo
+Repo --> Service: DRMKey(drmType, keyIdentifier, encryptionConfig)
+deactivate Repo
+
+alt Widevine DRM
+  Service -> KeyVault: retrieveContentKey(contentKeyId)
+  activate KeyVault
+  KeyVault -> AzureKV: getSecret(contentKeyId)
+  activate AzureKV
+  AzureKV --> KeyVault: contentKey
+  deactivate AzureKV
+  KeyVault --> Service: contentKey
+  deactivate KeyVault
+  
+  Service -> Service: generateWidevineLicense(challenge, contentKey)
+  Service -> KeyVault: signLicense(licenseBlob)
+  activate KeyVault
+  KeyVault -> AzureKV: signData(licenseBlob)
+  activate AzureKV
+  AzureKV --> KeyVault: signature
+  deactivate AzureKV
+  KeyVault --> Service: signedLicense
+  deactivate KeyVault
+
+else FairPlay DRM
+  Service -> KeyVault: retrieveContentKey(contentKeyId)
+  Service -> Service: generateFairPlayLicense(challenge, contentKey)
+  Service -> KeyVault: signLicense(licenseBlob)
+  KeyVault --> Service: signedLicense
+
+else PlayReady DRM
+  Service -> KeyVault: retrieveContentKey(contentKeyId)
+  Service -> Service: generatePlayReadyLicense(challenge, contentKey)
+  Service -> KeyVault: signLicense(licenseBlob)
+  KeyVault --> Service: signedLicense
+end
+
+Service -> Outbox: publishEvent(LicenseIssuedEvent)
+activate Outbox
+Outbox -> Bus: LicenseIssuedEvent(contentKeyId, deviceInfo, timestamp)
+deactivate Outbox
+
+Service --> Controller: LicenseResponse(signedLicense, type)
+deactivate Service
+Controller --> Player: 200 OK, license blob
+deactivate Controller
+
+note over Controller, Bus
+  License requests are tracked for
+  analytics and security monitoring
+end note
+
+@enduml
+

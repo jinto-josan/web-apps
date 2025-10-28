@@ -1,0 +1,74 @@
+@startuml
+title Media Processing Service - Thumbnail Selection Sequence
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam participantBackgroundColor lightblue
+skinparam arrowColor black
+
+participant "Client" as Client
+participant "REST Controller" as Controller
+participant "ThumbnailService" as Service
+participant "ThumbnailRepository" as Repo
+participant "BlobStorageClient" as Blob
+participant "AzureBlobStorage" as AzureBlob
+participant "OutboxEventPublisher" as Outbox
+participant "Service Bus" as Bus
+
+== List Available Thumbnails ==
+Client -> Controller: GET /api/videos/{videoId}/thumbnails
+activate Controller
+Controller -> Service: getThumbnails(videoId)
+activate Service
+
+Service -> Repo: findByVideoId(videoId)
+activate Repo
+Repo --> Service: List<Thumbnail>
+deactivate Repo
+
+loop For each thumbnail
+  Service -> Blob: getUrl(thumbnailUrl)
+  activate Blob
+  Blob -> AzureBlob: generateSasUrl(thumbnailUrl)
+  activate AzureBlob
+  AzureBlob --> Blob: signedUrl
+  deactivate AzureBlob
+  Blob --> Service: signedUrl
+  deactivate Blob
+end
+
+Service --> Controller: List<ThumbnailDTO>
+deactivate Service
+Controller --> Client: 200 OK, List<ThumbnailDTO>
+deactivate Controller
+
+== Select Thumbnail ==
+Client -> Controller: POST /api/videos/{videoId}/thumbnails/select\n{thumbnailId}
+activate Controller
+Controller -> Service: selectThumbnail(videoId, thumbnailId)
+activate Service
+
+Service -> Repo: setSelected(videoId, thumbnailId)
+activate Repo
+Repo -> Repo: update existing selection
+Repo -> Repo: set new selection
+Repo --> Service: updated
+deactivate Repo
+
+Service -> Outbox: publishEvent(ThumbnailSelectedEvent)
+activate Outbox
+Outbox -> Bus: ThumbnailSelectedEvent(videoId, selectedThumbnail)
+deactivate Outbox
+
+Service --> Controller: success
+deactivate Service
+Controller --> Client: 200 OK
+deactivate Controller
+
+note over Controller, Bus
+  Events are published to notify
+  other services of thumbnail selection
+end note
+
+@enduml
+

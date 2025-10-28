@@ -1,57 +1,178 @@
 @startuml
-title Video Transcode Service - Sequences
+title Media Processing Service - Main Workflow Sequence
 
 skinparam shadowing false
-skinparam fontName "Helvetica"
-skinparam titleFontName "Helvetica"
-skinparam legendFontName "Helvetica"
-skinparam noteFontName "Helvetica"
 skinparam backgroundColor white
 skinparam participantBackgroundColor lightblue
-skinparam participantBorderColor darkblue
-skinparam actorBackgroundColor lightgreen
-skinparam actorBorderColor darkgreen
 skinparam arrowColor black
-skinparam arrowThickness 2
-skinparam sequenceArrowThickness 2
-skinparam sequenceMessageAlignment left
-skinparam sequenceReferenceBackgroundColor lightyellow
-skinparam sequenceReferenceBorderColor black
-
 
 participant "Azure Service Bus" as Bus
 participant "VideoUploadedConsumer" as Consumer
-participant "TranscodeOrchestrator" as Orc
-participant "AMSAdapter" as AMS
-participant "PackagerAdapter" as PKG
-participant "ThumbnailService" as Thumbs
+participant "MediaProcessingOrchestrator" as Orchestrator
+participant "AzureMediaServicesAdapter" as AMS
+participant "MediaProcessingRepository" as JobRepo
+participant "ThumbnailRepository" as ThumbRepo
+participant "DRMKeyRepository" as DRMRepo
+participant "BlobStorageClient" as Blob
+participant "StreamingEndpointClient" as Streaming
+participant "DRMKeyVaultClient" as KeyVault
 participant "OutboxEventPublisher" as Outbox
+participant "Azure Media Services" as AzureMS
 
-== On VideoUploaded -> Transcode ==
-Bus -> Consumer: VideoUploaded{videoId, inputBlob}
-Consumer -> Orc: startTranscode(videoId, inputBlob)
-Orc -> AMS: submitEncodingJob(inputBlob)
-AMS --> Orc: JobId
+== Video Upload Complete -> Start Processing ==
+Bus -> Consumer: VideoUploadedEvent(videoId, inputBlobUrl, userId)
+activate Consumer
+Consumer -> Orchestrator: startProcessing(videoId, inputBlobUrl)
+activate Orchestrator
 
-loop until FINISHED or FAILED
-Orc -> AMS: getJobStatus(JobId)
-AMS --> Orc: JobStatus
+== Step 1: Create Job Record ==
+Orchestrator -> JobRepo: save(MediaProcessingJob)
+activate JobRepo
+JobRepo --> Orchestrator: job persisted
+deactivate JobRepo
+
+== Step 2: Submit Encoding Job to Azure Media Services ==
+Orchestrator -> AMS: submitEncodingJob(transformId, inputBlobUrl)
+activate AMS
+AMS -> Blob: downloadAsset(inputBlobUrl)
+activate Blob
+Blob --> AMS: asset bytes
+deactivate Blob
+
+AMS -> AzureMS: createTransform() / submitJob()
+activate AzureMS
+AzureMS --> AMS: jobId, status: QUEUED
+deactivate AzureMS
+AMS --> Orchestrator: jobId
+deactivate AMS
+
+Orchestrator -> JobRepo: updateStatus(jobId, ENCODING)
+activate JobRepo
+JobRepo --> Orchestrator: updated
+deactivate JobRepo
+
+== Step 3: Monitor Job Status ==
+loop Poll every 10 seconds until COMPLETED or FAILED
+  Orchestrator -> AMS: getJobStatus(jobId)
+  activate AMS
+  AMS -> AzureMS: getJobStatus(jobId)
+  activate AzureMS
+  AzureMS --> AMS: JobStatus
+  deactivate AzureMS
+  AMS --> Orchestrator: JobStatus
+  deactivate AMS
+  
+  alt Job still processing
+    Orchestrator -> JobRepo: updateStatus(jobId, PROCESSING)
+    activate JobRepo
+    JobRepo --> Orchestrator: updated
+    deactivate JobRepo
+  end
 end
 
-alt job finished
-Orc -> AMS: getAssetId(JobId)
-AMS --> Orc: assetId
-Orc -> PKG: packageHlsDash(assetId)
-PKG --> Orc: PackagingResult{hlsUrl, dashUrl}
-Orc -> Thumbs: generateThumbnails(assetId)
-Thumbs --> Orc: [Thumbnail]
-Orc -> Outbox: publish(TranscodeCompleted{videoId, assetId, hls, dash})
-Outbox --> Orc: ack
-Orc -> Outbox: publish(ThumbnailGenerated{videoId, [thumbs]})
-Outbox --> Orc: ack
-else job failed
-Orc -> Outbox: publish(TranscodeFailed{videoId})
-Outbox --> Orc: ack
+alt Job Completed Successfully ==
+  Orchestrator -> AMS: getAssetId(jobId)
+  activate AMS
+  AMS -> AzureMS: getJobOutputAssets(jobId)
+  activate AzureMS
+  AzureMS --> AMS: assetId
+  deactivate AzureMS
+  AMS --> Orchestrator: assetId
+  deactivate AMS
+  
+  == Step 4: Generate Thumbnails ==
+  Orchestrator -> AMS: generateThumbnails(assetId, ["00:00:03", "00:00:10", "00:00:20"])
+  activate AMS
+  AMS -> AzureMS: createThumbnailTransform() / submitJob()
+  activate AzureMS
+  AzureMS --> AMS: thumbnailUrls[]
+  deactivate AzureMS
+  AMS --> Orchestrator: List<String> thumbnailUrls
+  deactivate AMS
+  
+  loop For each thumbnail
+    Orchestrator -> ThumbRepo: save(Thumbnail(url, timeCode, size))
+    activate ThumbRepo
+    ThumbRepo --> Orchestrator: saved
+    deactivate ThumbRepo
+  end
+  
+  == Step 5: Package for Streaming (HLS/DASH) ==
+  Orchestrator -> AMS: packageHlsDash(assetId)
+  activate AMS
+  AMS -> AzureMS: createStreamingLocator(assetId)
+  activate AzureMS
+  AzureMS --> AMS: streamingLocatorId
+  deactivate AzureMS
+  
+  AMS -> Streaming: getHlsManifestUrl(streamingLocatorId)
+  activate Streaming
+  Streaming --> AMS: hlsUrl
+  deactivate Streaming
+  
+  AMS -> Streaming: getDashManifestUrl(streamingLocatorId)
+  activate Streaming
+  Streaming --> AMS: dashUrl
+  deactivate Streaming
+  
+  AMS --> Orchestrator: PackagingResult(hlsUrl, dashUrl)
+  deactivate AMS
+  
+  == Step 6: Apply DRM Protection ==
+  Orchestrator -> AMS: applyDRMProtection(assetId)
+  activate AMS
+  AMS -> AzureMS: createContentKeyPolicy(assetId)
+  activate AzureMS
+  
+  AzureMS -> KeyVault: storeContentKey(contentKeyId, key)
+  activate KeyVault
+  KeyVault --> AzureMS: stored
+  deactivate KeyVault
+  
+  AzureMS --> AMS: DRMConfiguration(keys, licenses, policies)
+  deactivate AzureMS
+  AMS --> Orchestrator: DRMResult(keys, licenses)
+  deactivate AMS
+  
+  loop For each DRM key
+    Orchestrator -> DRMRepo: save(DRMKey(contentKeyId, drmType, keyIdentifier))
+    activate DRMRepo
+    DRMRepo --> Orchestrator: saved
+    deactivate DRMRepo
+  end
+  
+  == Step 7: Update Job Status and Publish Events ==
+  Orchestrator -> JobRepo: updateStatus(jobId, COMPLETED)
+  activate JobRepo
+  JobRepo --> Orchestrator: updated
+  deactivate JobRepo
+  
+  Orchestrator -> Outbox: publishEvent(MediaProcessingCompletedEvent)
+  activate Outbox
+  Outbox --> Orchestrator: event persisted
+  Outbox -> Bus: MediaProcessingCompletedEvent(videoId, assetId, hlsUrl, dashUrl, thumbnails, drmConfig)
+  deactivate Outbox
+  
+  Orchestrator -> Outbox: publishEvent(ThumbnailGeneratedEvent)
+  activate Outbox
+  Outbox --> Orchestrator: event persisted
+  Outbox -> Bus: ThumbnailGeneratedEvent(videoId, thumbnails)
+  deactivate Outbox
+  
+else Job Failed ==
+  Orchestrator -> JobRepo: updateStatus(jobId, FAILED)
+  activate JobRepo
+  JobRepo --> Orchestrator: updated
+  deactivate JobRepo
+  
+  Orchestrator -> Outbox: publishEvent(MediaProcessingFailedEvent(videoId, error))
+  activate Outbox
+  Outbox -> Bus: MediaProcessingFailedEvent
+  deactivate Outbox
 end
+
+Orchestrator --> Consumer: processing complete
+deactivate Orchestrator
+deactivate Consumer
 
 @enduml
