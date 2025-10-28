@@ -1,0 +1,83 @@
+@startuml
+title Update Video with ETag Sequence
+
+actor User
+participant "API Gateway" as API
+participant "Video Controller" as Controller
+participant "Command Service" as Command
+participant "Domain Model" as Domain
+participant "Repository Adapter" as Repo
+database "Cosmos DB" as Cosmos
+
+User -> API: PATCH /api/v1/videos/123\nIf-Match: "v456"\n{title, description}
+activate API
+
+API -> Controller: PATCH /api/v1/videos/123\nIf-Match header
+activate Controller
+
+Controller -> Command: updateVideo(id, request, ifMatch)
+activate Command
+
+Command -> Repo: findById(videoId)
+activate Repo
+
+Repo -> Cosmos: SELECT * FROM videos\nWHERE id = '123'
+activate Cosmos
+Cosmos --> Repo: Video entity\nversion: "v456"
+deactivate Cosmos
+
+Repo --> Command: Video (version: "v456")
+deactivate Repo
+
+Command -> Command: validateETag(ifMatch, video.version)
+activate Command
+
+alt Version mismatch
+    Command -> Command: if (!"v456".equals("v456"))
+    Command --> Controller: **EXCEPTION**\nVersion mismatch\n(expected: v456)
+    Controller --> API: 400 Bad Request
+    API --> User: 400 Version mismatch
+    deactivate API
+    deactivate Controller
+    deactivate Command
+else Version matches
+    Command -> Domain: video.updateMetadata(...)
+    activate Domain
+    
+    Domain -> Domain: this.title = title
+    Domain -> Domain: this.updatedAt = now()
+    Domain --> Command: Updated video
+    deactivate Domain
+    
+    Command -> Command: generateVersion()
+    activate Command
+    Command --> Command: "v789"
+    
+    Command -> Repo: save(video)
+    activate Repo
+    
+    Repo -> Cosmos: UPDATE videos\nSET title=?, description=?,\nversion='v789',\nupdatedAt=now()
+    activate Cosmos
+    Cosmos --> Repo: Success
+    deactivate Cosmos
+    
+    Repo --> Command: Saved video\n(version: "v789")
+    deactivate Repo
+    
+    Command -> Controller: VideoResponse\n(version: "v789")
+    deactivate Command
+    
+    Controller -> Controller: Set ETag: "v789"
+    Controller --> API: 200 OK\nETag: "v789"
+    
+    API --> User: 200 OK\nETag: "v789"
+end
+
+deactivate API
+deactivate Controller
+deactivate Command
+
+note over User, Cosmos: Optimistic locking\nprevents lost updates
+
+@enduml
+

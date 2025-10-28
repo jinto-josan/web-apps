@@ -1,0 +1,75 @@
+@startuml
+title Create Video Sequence
+
+actor User
+participant "API Gateway" as API
+participant "Video Controller" as Controller
+participant "Command Service" as Command
+participant "Domain Model" as Domain
+participant "Repository Adapter" as Repo
+database "Cosmos DB" as Cosmos
+
+User -> API: POST /api/v1/videos\n{title, description, channelId, ...}
+activate API
+
+API -> Controller: POST /api/v1/videos
+activate Controller
+
+Controller -> Controller: Validate request
+activate Controller
+
+Controller -> Command: createVideo(request)
+activate Command
+
+Command -> Command: generateVideoId()
+activate Command
+
+Command -> Domain: new Video(...)
+activate Domain
+
+Domain -> Domain: Build Video\naggregate
+Domain --> Command: video
+
+Command -> Command: Add localized\ncontent
+Command -> Domain: addLocalizedTitle(...)
+activate Domain
+Domain --> Command
+
+Command -> Command: validateRequest()
+activate Command
+
+Command -> Domain: generateVersion()
+activate Domain
+Domain --> Command: "v123"
+
+Command -> Repo: save(video)
+activate Repo
+
+Repo -> Repo: toEntity(video)
+activate Repo
+Repo --> Repo: Cosmos Entity
+
+Repo -> Cosmos: INSERT INTO videos
+activate Cosmos
+Cosmos --> Repo: Success
+
+Repo --> Command: saved Video
+
+Command -> Command: toResponse(saved)
+activate Command
+Command --> Controller: VideoResponse
+
+Controller -> Controller: Add ETag header
+Controller --> API: 201 Created\nETag: "v123"
+
+API --> User: 201 Created\nETag: "v123"
+
+deactivate API
+deactivate Controller
+deactivate Command
+deactivate Domain
+deactivate Repo
+deactivate Cosmos
+
+@enduml
+

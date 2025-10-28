@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: video-catalog-service
+  
+  cloud:
+    azure:
+      cosmos:
+        endpoint: ${AZURE_COSMOS_ENDPOINT}
+        key: ${AZURE_COSMOS_KEY}
+        database: ${AZURE_COSMOS_DATABASE:youtube-mvp}
+      servicebus:
+        connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING}
+        topic-name: video-events
+      appconfiguration:
+        enabled: true
+        endpoint: ${AZURE_APP_CONFIGURATION_ENDPOINT}
+        connection-string: ${AZURE_APP_CONFIGURATION_CONNECTION_STRING}
+      keyvault:
+        secret:
+          enabled: true
+          endpoint: ${AZURE_KEY_VAULT_ENDPOINT}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI}
+          jwk-set-uri: ${OIDC_JWK_SET_URI}
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.youtube.mvp: DEBUG
+    com.azure: INFO
+
+resilience4j:
+  retry:
+    instances:
+      video-service:
+        maxAttempts: 3
+        waitDuration: 1s
+        exponentialBackoffMultiplier: 2
+  circuitbreaker:
+    instances:
+      video-service:
+        registerHealthIndicator: true
+        slidingWindowSize: 100
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+  bulkhead:
+    instances:
+      video-service:
+        maxConcurrentCalls: 10
+        maxWaitDuration: 5s
+  ratelimiter:
+    instances:
+      video-service:
+        limitForPeriod: 100
+        limitRefreshPeriod: 1s
+        timeoutDuration: 5s
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+

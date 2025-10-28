@@ -1,0 +1,56 @@
+@startuml
+title Query Videos with Pagination
+
+actor User
+participant "API Gateway" as API
+participant "Video Controller" as Controller
+participant "Query Service" as Query
+participant "Repository Adapter" as Repo
+database "Cosmos DB" as Cosmos
+
+User -> API: GET /api/v1/videos?\nchannelId=123&page=0&size=20
+activate API
+
+API -> Controller: GET /api/v1/videos
+activate Controller
+
+Controller -> Controller: Parse query params\n(channelId=123, page=0, size=20)
+activate Controller
+
+Controller -> Query: getVideosByChannel(\nchannelId, 0, 20)
+activate Query
+
+Query -> Repo: findByChannelId(\n"123", 0, 20)
+activate Repo
+
+Repo -> Cosmos: SELECT * FROM videos\nWHERE channelId='123'\nORDER BY updatedAt DESC
+activate Cosmos
+
+Cosmos -> Cosmos: Query execution
+Cosmos --> Repo: List of 50 videos
+deactivate Cosmos
+
+Repo -> Repo: Manual pagination\n(subList(0, 20))
+activate Repo
+Repo --> Query: Page 0: 20 videos
+deactivate Repo
+
+Query -> Query: Map to VideoResponse[]
+activate Query
+Query --> Controller: PagedResponse<\ncontent=[...],\npage=0,\nsize=20,\ntotalElements=50,\ntotalPages=3>
+deactivate Query
+
+Controller -> Controller: Add pagination\nheaders
+Controller --> API: 200 OK\nContent: 20 videos\nX-Total-Count: 50\nX-Page: 0\nX-Total-Pages: 3
+
+API --> User: 200 OK\n20 videos + metadata
+
+deactivate API
+deactivate Controller
+deactivate Query
+deactivate Repo
+
+note over User, Cosmos: Pagination prevents\nlarge result sets
+
+@enduml
+

@@ -1,0 +1,115 @@
+@startuml
+title Publish Video Sequence
+
+actor User
+participant "API Gateway" as API
+participant "Video Controller" as Controller
+participant "Command Service" as Command
+participant "Domain Model" as Domain
+participant "Event Publisher" as Event
+participant "Outbox Repository" as Outbox
+database "Cosmos DB" as Cosmos
+participant "Outbox Processor" as Processor
+participant "Service Bus" as SB
+
+User -> API: POST /api/v1/videos/{id}/publish
+activate API
+
+API -> Controller: POST /api/v1/videos/{id}/publish
+activate Controller
+
+Controller -> Command: publishVideo(videoId)
+activate Command
+
+Command -> Command: findById(videoId)
+activate Command
+Command -> Cosmos: SELECT * FROM videos\nWHERE id = videoId
+activate Cosmos
+Cosmos --> Command: Video entity
+deactivate Cosmos
+
+Command -> Domain: validatePublish(video)
+activate Domain
+Domain -> Domain: Check title\nCheck visibility\nCheck state
+Domain --> Command: Valid
+deactivate Domain
+
+Command -> Domain: video.publish()
+activate Domain
+Domain -> Domain: this.state = PUBLISHED
+Domain -> Domain: this.publishedAt = now()
+Domain --> Command: Updated video
+deactivate Domain
+
+Command -> Command: generateVersion()
+activate Command
+Command --> Command: "v789"
+
+Command -> Cosmos: UPDATE videos\nSET state='PUBLISHED',\nversion='v789'
+activate Cosmos
+Cosmos --> Command: Success
+deactivate Cosmos
+
+Command -> Command: createPublishedEvent()
+activate Command
+
+Command -> Event: publishVideoPublishedEvent(event)
+activate Event
+
+Event -> Event: serialize(event)
+Event -> Outbox: save(outboxEvent)
+activate Outbox
+
+Outbox -> Cosmos: INSERT INTO outbox\n(status='PENDING')
+activate Cosmos
+Cosmos --> Outbox: Success
+deactivate Cosmos
+deactivate Outbox
+
+Event --> Command: Event in outbox
+deactivate Event
+
+Command -> Controller: VideoResponse\n(published)
+Controller --> API: 200 OK\nETag: "v789"
+
+API --> User: 200 OK
+
+deactivate API
+deactivate Controller
+deactivate Command
+
+... Background Outbox Processing ...
+
+Processor -> Processor: @Scheduled(5s)
+Processor -> Outbox: SELECT * FROM outbox\nWHERE status='PENDING'\nLIMIT 100
+activate Outbox
+activate Processor
+
+Outbox -> Cosmos: Query outbox
+activate Cosmos
+Cosmos --> Outbox: PENDING events
+deactivate Cosmos
+Outbox --> Processor: Events list
+
+loop For each event
+    Processor -> SB: Send message\ntopic=video-published
+    activate SB
+    SB --> Processor: Success
+    deactivate SB
+    
+    Processor -> Outbox: UPDATE status='PROCESSED'
+    activate Outbox
+    Outbox -> Cosmos: UPDATE outbox
+    activate Cosmos
+    Cosmos --> Outbox: Success
+    deactivate Cosmos
+    deactivate Outbox
+end
+
+deactivate Processor
+deactivate Outbox
+
+note right of SB: Search indexer,\nNotifications,\nRecommendations\nconsume from topic
+
+@enduml
+
