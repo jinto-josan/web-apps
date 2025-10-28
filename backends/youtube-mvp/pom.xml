@@ -72,7 +72,6 @@
         <module>history-service</module>
         
         <!-- User Engagement Services -->
-        <module>subscription-service</module>
         <module>playlist-service</module>
         <module>engagement-service</module>
         <module>comments-service</module>

@@ -1,0 +1,48 @@
+@startuml
+actor User
+participant "REST Controller" as Controller
+participant "SubscriptionUseCase" as UseCase
+participant "IdempotencyRepo" as Idempotency
+participant "SubscriptionRepo" as Repo
+participant "StatsRepo" as Stats
+participant "EventPublisher" as Events
+participant "Service Bus" as Bus
+
+User -> Controller: POST /api/v1/channels/{id}/subscriptions\nIdempotency-Key: {uuid}
+activate Controller
+
+Controller -> Controller: Extract userId from JWT
+Controller -> UseCase: subscribeToChannel(command)
+activate UseCase
+
+UseCase -> Idempotency: get(idempotencyKey)
+Idempotency -> UseCase: Optional<cached>
+alt Cache hit
+    UseCase -> Repo: findByUserIdAndChannelId()
+    Repo -> UseCase: subscription
+    UseCase -> Controller: Return cached
+    Controller -> User: 201 Created (cached)
+else Cache miss
+    UseCase -> Repo: findByUserIdAndChannelId()
+    Repo -> UseCase: Optional.empty
+    
+    alt Already subscribed
+        UseCase -> Controller: ConflictException
+        Controller -> User: 409 Conflict
+    else New subscription
+        UseCase -> UseCase: Calculate shardSuffix
+        UseCase -> Repo: save(subscription)
+        Repo -> UseCase: saved
+        UseCase -> Stats: incrementSubscriberCount()
+        Stats -> UseCase: ok
+        UseCase -> Idempotency: put(key, response, 24h)
+        UseCase -> Events: publish("subscription.created")
+        Events -> Bus: Event
+        Bus -> Events: ACK
+        
+        UseCase -> Controller: subscription
+        Controller -> User: 201 Created
+    end
+end
+
+@enduml

@@ -1,0 +1,52 @@
+spring:
+  profiles:
+    active: local
+  
+  cloud:
+    azure:
+      cosmos:
+        endpoint: https://localhost:8081
+        key: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==
+        database: youtube-mvp-local
+        
+      servicebus:
+        connection-string: AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;DefaultEndpointsProtocol=http;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+        
+      appconfiguration:
+        enabled: false
+        
+      keyvault:
+        secrets:
+          enabled: false
+    
+    data:
+      redis:
+        host: localhost
+        port: 6379
+        ssl:
+          enabled: false
+        
+      jpa:
+        hibernate:
+          ddl-auto: update
+        show-sql: true
+        properties:
+          hibernate:
+            format_sql: true
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/auth/realms/youtube-mvp
+          jwk-set-uri: http://localhost:8080/auth/realms/youtube-mvp/protocol/openid_connect/certs
+  
+logging:
+  level:
+    root: INFO
+    com.youtube.channelservice: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.data.cosmos: DEBUG
+
+server:
+  port: 8080
