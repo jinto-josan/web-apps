@@ -1,0 +1,61 @@
+spring:
+  profiles:
+    active: local
+  
+  cloud:
+    azure:
+      credential:
+        managed-identity-enabled: false
+      profile:
+        tenant-id: ${AZURE_TENANT_ID:local}
+      
+      cosmos:
+        endpoint: ${AZURE_COSMOS_ENDPOINT:https://localhost:8081}
+        key: ${AZURE_COSMOS_KEY:local}
+        database: youtube-mvp-local
+      
+      servicebus:
+        connection-string: ${AZURE_SERVICE_BUS_CONNECTION_STRING:Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local}
+        topic-name: drm-events-local
+      
+      appconfiguration:
+        enabled: false
+      
+      keyvault:
+        secrets:
+          enabled: false
+      
+      media-services:
+        endpoint: ${AZURE_MEDIA_SERVICES_ENDPOINT:https://localhost:5543}
+    
+    data:
+      redis:
+        host: ${REDIS_HOST:localhost}
+        port: ${REDIS_PORT:6379}
+        ssl:
+          enabled: false
+        lettuce:
+          pool:
+            max-active: 8
+    
+    datasource:
+      url: jdbc:postgresql://localhost:5432/youtube_mvp_local
+      username: ${POSTGRES_USER:postgres}
+      password: ${POSTGRES_PASSWORD:postgres}
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_ISSUER_URI:https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0}
+          jwk-set-uri: ${OAUTH2_JWK_SET_URI:https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys}
+
+logging:
+  level:
+    com.youtube.drmservice: DEBUG
+    org.springframework.data.jpa: DEBUG
+    org.hibernate.SQL: DEBUG
+
+server:
+  port: 8080
+

@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drm-service
+  namespace: youtube-mvp
+  labels:
+    app: drm-service
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: drm-service
+  template:
+    metadata:
+      labels:
+        app: drm-service
+        version: v1
+    spec:
+      serviceAccountName: drm-service
+      containers:
+      - name: drm-service
+        image: <registry>/drm-service:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: actuator
+          containerPort: 8081
+          protocol: TCP
+        env:
+        - name: SERVER_PORT
+          value: "8080"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: AZURE_TENANT_ID
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: azure-tenant-id
+        - name: AZURE_COSMOS_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: cosmos-endpoint
+        - name: AZURE_COSMOS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: cosmos-key
+        - name: AZURE_SERVICE_BUS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: servicebus-connection-string
+        - name: AZURE_KEY_VAULT_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: key-vault-endpoint
+        - name: AZURE_APP_CONFIG_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: app-config-endpoint
+        - name: DATASOURCE_URL
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: datasource-url
+        - name: DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: datasource-username
+        - name: DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: datasource-password
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: redis-host
+        - name: REDIS_PORT
+          value: "6379"
+        - name: OAUTH2_ISSUER_URI
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: oauth2-issuer-uri
+        - name: OAUTH2_JWK_SET_URI
+          valueFrom:
+            secretKeyRef:
+              name: drm-service-secrets
+              key: oauth2-jwk-set-uri
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 65532
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+

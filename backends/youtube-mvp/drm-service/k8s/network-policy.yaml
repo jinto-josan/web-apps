@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: drm-service-netpol
+  namespace: youtube-mvp
+spec:
+  podSelector:
+    matchLabels:
+      app: drm-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - namespaceSelector:
+        matchLabels:
+          name: youtube-mvp
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow egress to required services
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: youtube-mvp
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+    - protocol: TCP
+      port: 6379  # Redis
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443   # Azure services HTTPS
+
