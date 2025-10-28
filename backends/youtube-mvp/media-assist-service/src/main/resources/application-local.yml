@@ -1,0 +1,29 @@
+# Local development configuration with emulators
+spring:
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: false
+      keyvault:
+        secrets:
+          enabled: false
+    data:
+      redis:
+        host: localhost
+        port: 6379
+
+# Azurite emulator configuration
+azure:
+  storage:
+    account-name: devstoreaccount1
+    account-key: Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==
+    blob-endpoint: http://localhost:10000/devstoreaccount1
+
+media-assist:
+  service:
+    sas:
+      default-validity-duration: PT1H
+      playback-validity-duration: PT4H
+    audit:
+      enabled: true
+

@@ -1,0 +1,136 @@
+spring:
+  application:
+    name: media-assist-service
+  
+  cloud:
+    azure:
+      credential:
+        managed-identity-enabled: true
+      profile:
+        tenant-id: ${AZURE_TENANT_ID}
+        cloud-type: Azure
+      
+      appconfiguration:
+        enabled: true
+        endpoint: ${AZURE_APP_CONFIG_ENDPOINT}
+        
+      keyvault:
+        secrets:
+          enabled: true
+          endpoint: ${AZURE_KEY_VAULT_ENDPOINT}
+    
+    data:
+      redis:
+        host: ${REDIS_HOST:localhost}
+        port: ${REDIS_PORT:6379}
+        password: ${REDIS_PASSWORD:}
+        ssl:
+          enabled: ${REDIS_SSL_ENABLED:false}
+        lettuce:
+          pool:
+            max-active: 8
+            max-idle: 8
+            min-idle: 0
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_ISSUER_URI}
+          jwk-set-uri: ${OAUTH2_JWK_SET_URI}
+  
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+azure:
+  storage:
+    account-name: ${AZURE_STORAGE_ACCOUNT_NAME}
+    account-key: ${AZURE_STORAGE_ACCOUNT_KEY}
+    blob-endpoint: ${AZURE_STORAGE_BLOB_ENDPOINT}
+    connection-string: ${AZURE_STORAGE_CONNECTION_STRING}
+
+media-assist:
+  service:
+    sas:
+      default-validity-duration: PT1H
+      playback-validity-duration: PT4H
+      max-validity-duration: PT24H
+    idempotency:
+      ttl: PT24H
+    audit:
+      enabled: true
+    path-validation:
+      apple-allowed-containers:
+        - source-videos
+        - renditions
+        - manifests
+        - thumbnails
+        - subtitles
+        - audio
+
+logging:
+  level:
+    root: INFO
+    com.youtube.mediaassist: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    com.azure.storage: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      azure:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        enabled: true
+      percentiles:
+        http.server.requests: 0.5,0.9,0.95,0.99
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    try-it-out-enabled: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      blob-storage-operation:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+  retry:
+    instances:
+      blob-storage-operation:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+  timelimiter:
+    instances:
+      blob-storage-operation:
+        timeoutDuration: 5s
+

@@ -64,6 +64,7 @@
         <module>content-id-service</module>
         <module>policy-enforcement-service</module>
         <module>moderation-service</module>
+        <module>media-assist-service</module>
         
         <!-- Search & Discovery Services -->
         <module>search-indexer-service</module>
