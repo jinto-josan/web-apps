@@ -1,0 +1,83 @@
+@startuml UploadCompensationFlow
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+
+title Upload Compensation Flow - Failed Saga Execution
+
+actor Client
+participant "REST Controller" as Controller
+participant "InitializeUploadSaga" as Saga
+participant "ValidateStep" as Step1
+participant "QuotaStep" as Step2
+participant "UrlStep" as Step3
+participant "SessionStep" as Step4
+participant "QuotaRepository" as QuotaRepo
+participant "UploadRepository" as UploadRepo
+participant "Database" as DB
+
+== Normal Execution ==
+
+Client -> Controller: POST /api/v1/uploads/initialize
+activate Controller
+Controller -> Saga: Execute saga
+activate Saga
+
+Saga -> Step1: execute() ✅
+activate Step1
+Step1 --> Saga: Success
+deactivate Step1
+
+Saga -> Step2: execute() ✅
+activate Step2
+Step2 -> QuotaRepo: consumeQuota()
+activate QuotaRepo
+QuotaRepo -> DB: UPDATE quota (consumed)
+deactivate QuotaRepo
+Step2 --> Saga: Success
+deactivate Step2
+
+== Failure Scenario ==
+
+Saga -> Step3: execute()
+activate Step3
+
+note right of Step3: FAILURE: Azure Blob Storage\nconnection timeout
+
+Step3 --> Saga: SagaStepException
+deactivate Step3
+
+== Compensation Phase ==
+
+activate Saga
+
+Saga -> Saga: detectFailure()
+Saga -> Saga: compensate(context, "GENERATE_PRE_SIGNED_URL")
+
+Saga -> Step2: compensate()
+activate Step2
+
+Step2 -> QuotaRepo: releaseQuota(userId, size, DAILY)
+activate QuotaRepo
+QuotaRepo -> DB: UPDATE upload_quota\nSET current_usage -= size
+activate DB
+DB --> QuotaRepo: Quota released
+deactivate DB
+deactivate QuotaRepo
+deactivate Step2
+
+note right of Step1: No compensation needed\n(read-only operation)
+
+Saga --> Controller: SagaExecutionException
+deactivate Saga
+
+== Error Response ==
+
+Controller -> Client: 400 Bad Request\n{ error: "Upload initialization failed" }
+deactivate Controller
+
+note over Client,Saga: Compensation ensures:\n- Quota not consumed\n- No partial state\n- System remains consistent
+
+@enduml
+

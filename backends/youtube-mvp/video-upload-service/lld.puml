@@ -1,116 +1,417 @@
-@startuml
-title Video Upload Service - LLD
-
+@startuml VideoUploadServiceLLD
+!theme plain
+skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam fontName "Helvetica"
-skinparam titleFontName "Helvetica"
-skinparam legendFontName "Helvetica"
-skinparam noteFontName "Helvetica"
-skinparam backgroundColor white
-skinparam packageBackgroundColor lightblue
-skinparam packageBorderColor darkblue
-skinparam classBackgroundColor white
-skinparam classBorderColor black
-skinparam interfaceBackgroundColor lightgreen
-skinparam interfaceBorderColor black
-skinparam enumBackgroundColor lightyellow
-skinparam enumBorderColor black
-skinparam arrowColor black
+skinparam classBackgroundColor #FFFACD
+skinparam classBorderColor #000000
+skinparam interfaceBackgroundColor #E6F2FF
+skinparam interfaceBorderColor #0066CC
+skinparam enumBackgroundColor #E8E8E8
+skinparam enumBorderColor #000000
+skinparam arrowColor #000000
 skinparam arrowThickness 2
+skinparam noteBackgroundColor #FFFACD
 
+title Video Upload Service - Low Level Design\n\nClasses and Relationships
 
-package "VideoUploadService" {
-class UploadController {
-+POST /videos/uploads/sessions
-+POST /videos/uploads/{sessionId}/chunks
-+POST /videos/uploads/{sessionId}/complete
-+POST /videos/uploads/{sessionId}/abort
-+GET /videos/uploads/{sessionId}
+package "Interface Layer" {
+    class VideoUploadController {
+        -VideoUploadRepository uploadRepo
+        +initializeUpload(request, jwt)
+        +getUploadStatus(uploadId, jwt)
+        +cancelUpload(uploadId, jwt)
+    }
 }
 
-class UploadService {
-+createResumableSession(videoId, uploaderId, size, checksum): UploadSessionDTO
-+acceptChunk(sessionId, offset, bytes): ChunkAck
-+complete(sessionId): CompletionResult
-+abort(sessionId): void
-+getSession(sessionId): UploadSessionDTO
+package "Application Layer - Saga Pattern" {
+    interface Saga<T> {
+        +execute() : T
+        +getSagaId() : String
+        +getSagaType() : String
+        +getSteps() : List<SagaStep>
+    }
+    
+    interface SagaStep {
+        +execute(context) : Object
+        +compensate(context) : void
+        +getStepName() : String
+        +isCompensatable() : boolean
+    }
+    
+    class InitializeUploadSaga implements Saga {
+        -String sagaId
+        -String userId
+        -VideoUploadRepository uploadRepo
+        -UploadQuotaRepository quotaRepo
+        -BlobStorageService blobService
+        -VideoValidator validator
+        +execute() : PreSignedUrl
+        -compensate(context, failedStep)
+        -ValidateRequestStep
+        -CheckQuotaStep
+        -GeneratePreSignedUrlStep
+        -CreateUploadSessionStep
+    }
+    
+    class SagaContext {
+        -Map<String, Object> data
+        -String sagaId
+        -String sagaType
+        +put(key, value)
+        +get(key, type) : T
+        +containsKey(key) : boolean
+    }
+    
+    class SagaExecutionException extends RuntimeException {
+        -String sagaId
+        -String sagaType
+        -String failedStep
+    }
+    
+    class SagaStepException extends RuntimeException {
+        -String stepName
+        -String sagaId
+        -String errorCode
+    }
+    
+    InitializeUploadSaga ..|> Saga
+    InitializeUploadSaga ..> SagaContext : uses
+    InitializeUploadSaga ..> SagaExecutionException : throws
+    SagaStep <|-- InitializeUploadSaga.InnerSteps
+    InitializeUploadSaga ..> VideoUploadController : called by
 }
 
-class UploadSessionRepository {
-+save(session: UploadSession)
-+findById(id): Optional
-+updateState(id, state: UploadState)
-+updateProgress(id, receivedBytes)
-+markCompleted(id, blobPath)
-}
-
-class UploadSession {
--id: UUID
--videoId: UUID
--uploaderId: UUID
--status: UploadStatus
--state: UploadState
--expectedSize: long
--checksum: String
--blobPath: String
--receivedBytes: long
--createdAt: Instant
+package "Domain Layer - Entities" {
+    class VideoUpload {
+        -String id
+        -String userId
+        -String channelId
+        -String videoTitle
+        -String videoDescription
+        -UploadStatus status
+        -Long totalSizeBytes
+        -Long uploadedSizeBytes
+        -String blobName
+        -String blobContainer
+        -String contentType
+        -String etag
+        -Instant createdAt
+        -Instant updatedAt
+        -Instant expiresAt
+        -Integer expirationMinutes
+        -String errorMessage
+        -Integer retryCount
+        -Integer maxRetries
+        +getProgressPercentage() : double
+        +isComplete() : boolean
+        +isResumable() : boolean
+        +markAsFailed(error)
 }
 
 enum UploadStatus {
-INITIATED
+        INITIALIZING
 UPLOADING
-COMPLETED
-ABORTED
+        UPLOAD_COMPLETE
+        VALIDATING
+        VALIDATION_COMPLETE
+        TRANSCODE_QUEUED
 FAILED
-}
-class UploadState {
--partETags: List
+        CANCELLED
+        EXPIRED
+    }
+    
+    class ChunkUpload {
+        -String id
+        -String uploadId
+        -Integer chunkNumber
+        -Integer totalChunks
+        -Long chunkSizeBytes
+        -Long chunkStartByte
+        -Long chunkEndByte
+        -ChunkStatus status
+        -String etag
+        -String preSignedUrl
+        -Instant expiresAt
+        -Instant uploadedAt
+        -String errorMessage
+        +getProgressPercentage() : double
+        +markAsCompleted(etag, uploadedAt)
+    }
+    
+    class UploadQuota {
+        -String userId
+        -QuotaType quotaType
+        -Long currentUsage
+        -Long quotaLimit
+        -Instant periodStart
+        -Instant periodEnd
+        -Integer uploadCount
+        -Integer uploadLimit
+        +isExceeded() : boolean
+        +getRemainingQuota() : long
+        +isExpired() : boolean
+        +consumeQuota(sizeBytes)
+        +releaseQuota(sizeBytes)
+        +resetQuota(periodStart, periodEnd)
+    }
+    
+    enum QuotaType {
+        DAILY
+        WEEKLY
+        MONTHLY
+        LIFETIME
+    }
+    
+    class PreSignedUrl {
+        -String url
+        -Instant expiresAt
+        -String uploadId
+        -String blobName
+        -String containerName
+        -Long maxFileSizeBytes
+        -Integer durationMinutes
+        +isExpired() : boolean
+        +getRemainingSeconds() : long
+    }
+    
+    VideoUpload --> UploadStatus : uses
+    ChunkUpload --> VideoUpload : "belongs to"
+    UploadQuota --> QuotaType : uses
 }
 
-interface BlobStorageClient {
-+reserveObjectPath(videoId): String
-+composeParts(blobPath, partETags): void
-+verifyChecksum(blobPath, checksum): boolean
+package "Domain Layer - Services" {
+    interface BlobStorageService {
+        +generatePreSignedUrl(...) : PreSignedUrl
+        +generateChunkUrls(...) : Map<Integer, PreSignedUrl>
+        +verifyBlobComplete(container, blob) : boolean
+        +getBlobSize(container, blob) : long
+        +getBlobEtag(container, blob) : String
+        +deleteBlob(container, blob) : boolean
+        +listBlobs(container, prefix) : Map
+    }
+    
+    interface VideoValidator {
+        +validate(stream, fileName, size) : ValidationResult
+        ValidationResult
+        SupportedFormat
+        Constraints
+    }
+    
+    InitializeUploadSaga ..> BlobStorageService : uses
+    InitializeUploadSaga ..> VideoValidator : uses
 }
 
-interface RedisUploadStateStore {
-+set(sessionId, state: UploadState)
-+get(sessionId): Optional
-+delete(sessionId)
+package "Domain Layer - Repositories" {
+    interface VideoUploadRepository {
+        +save(upload) : VideoUpload
+        +findById(uploadId) : Optional
+        +findByUserId(userId) : List
+        +findActiveUploads(userId) : List
+        +findByStatus(status) : List
+        +updateStatus(uploadId, status)
+        +updateProgress(uploadId, sizeBytes)
+        +delete(uploadId)
+        +exists(uploadId) : boolean
+        +findExpiredUploads() : List
+    }
+    
+    interface UploadQuotaRepository {
+        +getOrCreate(userId, type) : UploadQuota
+        +findByUserIdAndType(userId, type) : Optional
+        +save(quota) : UploadQuota
+        +consumeQuota(userId, sizeBytes, type)
+        +releaseQuota(userId, sizeBytes, type)
+        +hasRemainingQuota(userId, sizeBytes, type) : boolean
+        +getRemainingQuota(userId, type) : long
+    }
+    
+    VideoUploadController ..> VideoUploadRepository : uses
+    InitializeUploadSaga ..> VideoUploadRepository : uses
+    InitializeUploadSaga ..> UploadQuotaRepository : uses
 }
 
-class AzureSqlUploadStore {
-+persistSession(session: UploadSession)
-+updateProgress(sessionId, receivedBytes)
-+updateStatus(sessionId, status)
+package "Infrastructure Layer - Persistence" {
+    class VideoUploadEntity {
+        -String id (PK)
+        -String userId
+        -String channelId
+        -String videoTitle
+        -String videoDescription
+        -UploadStatus status
+        -Long totalSizeBytes
+        -Long uploadedSizeBytes
+        -String blobName
+        -String blobContainer
+        -String contentType
+        -String etag
+        -Instant createdAt
+        -Instant updatedAt
+        -Instant expiresAt
+        -Integer expirationMinutes
+        -String errorMessage
+        -Integer retryCount
+        -Integer maxRetries
+    }
+    
+    class UploadQuotaEntity {
+        -Long id (PK)
+        -String userId
+        -QuotaType quotaType
+        -Long currentUsage
+        -Long quotaLimit
+        -Instant periodStart
+        -Instant periodEnd
+        -Integer uploadCount
+        -Integer uploadLimit
+    }
+    
+    class VideoUploadEntityRepository {
+        +findByUserId(userId)
+        +findByUserIdAndStatusIn(userId, statuses)
+        +findByStatus(status)
+        +findByExpiresAtBefore(expiresAt)
+    }
+    
+    class VideoUploadRepositoryJPA implements VideoUploadRepository {
+        -VideoUploadEntityRepository jpaRepo
+        +save(upload) : VideoUpload
+        +findById(uploadId) : Optional
+        +toEntity(upload) : VideoUploadEntity
+        +toDomain(entity) : VideoUpload
+    }
+    
+    VideoUploadEntityRepository --> VideoUploadEntity : manages
+    VideoUploadRepositoryJPA --> VideoUploadEntityRepository : uses
+    VideoUploadRepositoryJPA ..|> VideoUploadRepository : implements
+    VideoUploadEntity --> VideoUpload : "maps to"
 }
 
-class OutboxEventPublisher {
-+publish(event: DomainEvent)
+package "Infrastructure Layer - External Services" {
+    class AzureBlobStorageService implements BlobStorageService {
+        -BlobServiceClient blobServiceClient
+        -String connectionString
+        +generatePreSignedUrl(...) : PreSignedUrl
+        +generateChunkUrls(...) : Map
+        +verifyBlobComplete(...) : boolean
+        +deleteBlob(...) : boolean
+    }
+    
+    AzureBlobStorageService ..|> BlobStorageService : implements
+    InitializeUploadSaga --> AzureBlobStorageService : uses
 }
 
-class DomainEvent {}
+package "Infrastructure Layer - Configuration" {
+    class SecurityConfig {
+        +securityFilterChain(http) : SecurityFilterChain
+    }
+    
+    class ResilienceConfig {
+        +retryRegistry() : RetryRegistry
+        +circuitBreakerRegistry() : CircuitBreakerRegistry
+        +blobStorageCircuitBreaker()
+        +blobStorageRetry()
+    }
+    
+    class VideoUploadServiceApplication {
+        +main(args)
+    }
 }
 
-package "Azure Integrations" {
-class BlobStorage
-class AzureSQL
-class Redis
-class AzureServiceBusTopic
+package "Database Schema" {
+    entity "video_upload" as VideoUploadTable {
+        * id : VARCHAR(255) PK
+        --
+        * user_id : VARCHAR(255)
+        channel_id : VARCHAR(255)
+        video_title : VARCHAR(500)
+        video_description : TEXT
+        * status : VARCHAR(50)
+        * total_size_bytes : BIGINT
+        uploaded_size_bytes : BIGINT
+        blob_name : VARCHAR(1000)
+        blob_container : VARCHAR(255)
+        content_type : VARCHAR(100)
+        etag : VARCHAR(255)
+        * created_at : TIMESTAMP
+        * updated_at : TIMESTAMP
+        expires_at : TIMESTAMP
+        expiration_minutes : INTEGER
+        error_message : TEXT
+        retry_count : INTEGER
+        max_retries : INTEGER
+    }
+    
+    entity "upload_quota" as UploadQuotaTable {
+        * id : BIGSERIAL PK
+        --
+        * user_id : VARCHAR(255)
+        * quota_type : VARCHAR(50)
+        current_usage : BIGINT
+        * quota_limit : BIGINT
+        period_start : TIMESTAMP
+        * period_end : TIMESTAMP
+        upload_count : INTEGER
+        upload_limit : INTEGER
+    }
+    
+    entity "chunk_upload" as ChunkUploadTable {
+        * id : VARCHAR(255) PK
+        --
+        * upload_id : VARCHAR(255) FK
+        * chunk_number : INTEGER
+        total_chunks : INTEGER
+        chunk_size_bytes : BIGINT
+        chunk_start_byte : BIGINT
+        chunk_end_byte : BIGINT
+        status : VARCHAR(50)
+        etag : VARCHAR(255)
+        pre_signed_url : TEXT
+        expires_at : TIMESTAMP
+        uploaded_at : TIMESTAMP
+        error_message : TEXT
+    }
+    
+    VideoUploadTable ||--o{ ChunkUploadTable
+    VideoUploadEntity --> VideoUploadTable : "persists to"
+    UploadQuotaEntity --> UploadQuotaTable : "persists to"
 }
 
-UploadController --> UploadService
-UploadService --> UploadSessionRepository
-UploadService --> BlobStorageClient
-UploadService --> RedisUploadStateStore
-UploadService --> AzureSqlUploadStore
-UploadSessionRepository ..> AzureSQL
-BlobStorageClient ..> BlobStorage
-RedisUploadStateStore ..> Redis
-UploadService --> OutboxEventPublisher : "VideoUploaded"
-OutboxEventPublisher ..> AzureServiceBusTopic
+' Relationships
+VideoUploadController ..> InitializeUploadSaga : "calls"
+InitializeUploadSaga ..> VideoUpload : "creates"
+InitializeUploadSaga ..> PreSignedUrl : "returns"
+InitializeUploadSaga ..> UploadQuota : "manages"
+
+note top of VideoUploadController
+    **REST Endpoints:**
+    - POST /api/v1/uploads/initialize
+    - GET /api/v1/uploads/{id}/status
+    - POST /api/v1/uploads/{id}/cancel
+end note
+
+note bottom of InitializeUploadSaga
+    **Saga Steps:**
+    1. Validate Request
+    2. Check Quota (compensatable)
+    3. Generate Pre-signed URL
+    4. Create Upload Session (compensatable)
+end note
+
+note right of BlobStorageService
+    **Azure Integration:**
+    - Pre-signed URLs (SAS tokens)
+    - Chunked upload support
+    - Blob verification
+    - Automatic cleanup
+end note
+
+note right of VideoValidator
+    **Validation:**
+    - File size: 1KB - 256GB
+    - Content type: video/*
+    - Format detection
+    - Security scanning
+end note
 
 @enduml

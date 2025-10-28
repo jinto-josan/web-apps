@@ -1,0 +1,84 @@
+@startuml CancelUpload
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+
+title Cancel Upload - Sequence Diagram
+
+actor Client
+participant "REST Controller" as Controller
+participant "VideoUploadRepository" as Repository
+participant "AzureBlobStorageService" as BlobService
+participant "Database" as DB
+participant "UploadQuotaRepository" as QuotaRepo
+database "Azure Blob Storage" as BlobStorage
+
+== Cancel Request ==
+
+Client -> Controller: POST /api/v1/uploads/{uploadId}/cancel
+activate Controller
+
+Controller -> Controller: Extract userId from JWT
+
+Controller -> Repository: findById(uploadId)
+activate Repository
+
+Repository -> DB: SELECT * FROM video_upload\nWHERE id = uploadId
+activate DB
+DB --> Repository: VideoUploadEntity
+deactivate DB
+
+Repository --> Controller: VideoUpload
+deactivate Repository
+
+== Ownership Verification ==
+
+Controller -> Controller: Verify ownership\nupload.getUserId() == userId
+
+alt Not Owner
+    Controller -> Client: 403 Forbidden
+    deactivate Controller
+else Owner
+    Controller -> Controller: Verify status is cancellable
+    
+    alt Already Completed
+        Controller -> Client: 400 Bad Request\n"Upload already completed"
+        deactivate Controller
+    else Cancellable
+        == Cancel Operations ==
+        
+        Controller -> Repository: updateStatus(uploadId, CANCELLED)
+        activate Repository
+        
+        Repository -> DB: UPDATE video_upload\nSET status = 'CANCELLED',\n    updated_at = NOW()
+        activate DB
+        DB --> Repository: Updated
+        deactivate DB
+        deactivate Repository
+        
+        opt If blob exists
+            Controller -> BlobService: deleteBlob(container, blobName)
+            activate BlobService
+            BlobService -> BlobStorage: Delete blob
+            BlobStorage --> BlobService: Deleted
+            deactivate BlobService
+        end
+        
+        opt Release Quota
+            Controller -> QuotaRepo: releaseQuota(userId, fileSize)
+            activate QuotaRepo
+            QuotaRepo -> DB: UPDATE upload_quota\nSET current_usage -= size
+            activate DB
+            DB --> QuotaRepo: Updated
+            deactivate DB
+            deactivate QuotaRepo
+        end
+        
+        Controller -> Client: 200 OK
+        deactivate Controller
+    end
+end
+
+@enduml
+

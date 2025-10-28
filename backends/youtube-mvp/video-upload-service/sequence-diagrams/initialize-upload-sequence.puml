@@ -1,0 +1,123 @@
+@startuml InitializeUploadSequence
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+
+title Initialize Video Upload - Sequence Diagram
+
+actor Client
+participant "REST Controller" as Controller
+participant "InitializeUploadSaga" as Saga
+participant "ValidateRequestStep" as ValidateStep
+participant "CheckQuotaStep" as QuotaStep
+participant "GeneratePreSignedUrlStep" as UrlStep
+participant "CreateUploadSessionStep" as SessionStep
+participant "BlobStorageService" as BlobService
+participant "QuotaRepository" as QuotaRepo
+participant "UploadRepository" as UploadRepo
+participant "Database" as DB
+database "Azure Blob Storage" as BlobStorage
+
+== Request Validation Phase ==
+
+Client -> Controller: POST /api/v1/uploads/initialize\n{title, size, contentType}
+
+activate Controller
+
+Controller -> Controller: Extract userId from JWT
+
+Controller -> Saga: new InitializeUploadSaga(sagaId, userId, ...)
+activate Saga
+
+== Step 1: Validate Request ==
+
+Saga -> ValidateStep: execute(context)
+activate ValidateStep
+
+ValidateStep -> ValidateStep: Check file size constraints\n(1KB - 256GB)
+
+ValidateStep -> ValidateStep: Validate content type\n(video/*)
+
+ValidateStep --> Saga: Success
+deactivate ValidateStep
+
+== Step 2: Check Quota ==
+
+Saga -> QuotaStep: execute(context)
+activate QuotaStep
+
+QuotaStep -> QuotaRepo: hasRemainingQuota(userId, size, DAILY)
+activate QuotaRepo
+QuotaRepo -> DB: SELECT quota FROM upload_quota
+activate DB
+DB --> QuotaRepo: quota data
+deactivate DB
+QuotaRepo --> QuotaStep: boolean
+
+alt Quota Available
+    QuotaStep -> QuotaRepo: consumeQuota(userId, size, DAILY)
+    QuotaRepo -> DB: UPDATE upload_quota\nSET current_usage += size
+    DB --> QuotaRepo: Updated
+    deactivate QuotaRepo
+    QuotaStep --> Saga: Success
+else Quota Exceeded
+    QuotaStep --> Saga: SagaStepException(QUOTA_EXCEEDED)
+    deactivate QuotaRepo
+end
+
+deactivate QuotaStep
+
+== Step 3: Generate Pre-signed URL ==
+
+Saga -> UrlStep: execute(context)
+activate UrlStep
+
+UrlStep -> BlobService: generatePreSignedUrl(\n  container, blobName,\n  userId, expiresAt,\n  size, contentType\n)
+activate BlobService
+
+BlobService -> BlobService: Create BlobSasPermission\n(with write permission)
+
+BlobService -> BlobStorage: Generate SAS token
+activate BlobStorage
+BlobStorage --> BlobService: SAS token
+deactivate BlobStorage
+
+BlobService -> BlobService: Build pre-signed URL\n(url?token)
+
+BlobService --> UrlStep: PreSignedUrl
+deactivate BlobService
+
+UrlStep --> Saga: PreSignedUrl
+deactivate UrlStep
+
+== Step 4: Create Upload Session ==
+
+Saga -> SessionStep: execute(context)
+activate SessionStep
+
+SessionStep -> SessionStep: Build VideoUpload entity\n(status: INITIALIZING)
+
+SessionStep -> UploadRepo: save(upload)
+activate UploadRepo
+UploadRepo -> DB: INSERT INTO video_upload
+activate DB
+DB --> UploadRepo: Upload saved
+deactivate DB
+deactivate UploadRepo
+
+SessionStep --> Saga: VideoUpload entity
+deactivate SessionStep
+
+== Response ==
+
+Saga --> Controller: PreSignedUrl
+deactivate Saga
+
+Controller -> Client: 200 OK\n{\n  uploadId,\n  preSignedUrl,\n  expiresAt,\n  blobName,\n  durationMinutes\n}
+deactivate Controller
+
+note right of Client: Client uploads directly\nto Azure Blob Storage\n(no server intermediation)
+
+@enduml
+

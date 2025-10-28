@@ -1,0 +1,62 @@
+@startuml CheckUploadStatus
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+
+title Check Upload Status - Sequence Diagram
+
+actor Client
+participant "REST Controller" as Controller
+participant "VideoUploadRepository" as Repository
+participant "Database" as DB
+
+== Status Check ==
+
+Client -> Controller: GET /api/v1/uploads/{uploadId}/status
+activate Controller
+
+Controller -> Controller: Extract userId from JWT
+
+Controller -> Repository: findById(uploadId)
+activate Repository
+
+Repository -> DB: SELECT * FROM video_upload\nWHERE id = uploadId
+activate DB
+
+DB --> Repository: VideoUploadEntity
+deactivate DB
+
+Repository -> Repository: Convert to domain entity
+Repository --> Controller: VideoUpload
+deactivate Repository
+
+== Ownership Check ==
+
+Controller -> Controller: Verify userId matches\nupload.getUserId()
+
+alt Unauthorized Access
+    Controller -> Client: 403 Forbidden
+    deactivate Controller
+else Authorized
+    Controller -> Controller: Calculate progress:\n(uploadedSize / totalSize) * 100
+    
+    Controller -> Client: 200 OK\n{\n  uploadId,\n  status,\n  progressPercentage,\n  totalSizeBytes,\n  uploadedSizeBytes,\n  errorMessage\n}
+    deactivate Controller
+end
+
+legend right
+  **Status Values:**
+  - INITIALIZING
+  - UPLOADING
+  - UPLOAD_COMPLETE
+  - VALIDATING
+  - VALIDATION_COMPLETE
+  - TRANSCODE_QUEUED
+  - FAILED
+  - CANCELLED
+  - EXPIRED
+endlegend
+
+@enduml
+
