@@ -1,0 +1,80 @@
+replicaCount: 3
+
+image:
+  repository: youtube-mvp/search-query-service
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+  hosts:
+    - host: search-api.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Azure configuration
+azure:
+  cosmos:
+    endpoint: ""
+    key: ""
+    databaseName: "youtube-mvp"
+    containerName: "videos"
+  servicebus:
+    connectionString: ""
+    topicName: "video-events"
+    subscriptionName: "search-index-updates"
+  search:
+    endpoint: ""
+    apiKey: ""
+    indexName: "video-search-index"
+  appconfig:
+    endpoint: ""
+  keyvault:
+    endpoint: ""
+
+env: []

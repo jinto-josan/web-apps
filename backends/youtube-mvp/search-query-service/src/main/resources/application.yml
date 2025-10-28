@@ -1,0 +1,130 @@
+spring:
+  application:
+    name: search-query-service
+  
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: true
+        endpoint: ${AZURE_APPCONFIG_ENDPOINT:https://appconfig-youtube-mvp.azconfig.io}
+      
+      keyvault:
+        secret:
+          enabled: true
+          endpoint: ${AZURE_KEYVAULT_ENDPOINT:https://youtube-mvp-kv.vault.azure.net/}
+      
+      cosmos:
+        enabled: true
+        endpoint: ${AZURE_COSMOS_ENDPOINT}
+        key: ${AZURE_COSMOS_KEY}
+        database-name: ${AZURE_COSMOS_DATABASE:youtube-mvp}
+        container-name: ${AZURE_COSMOS_CONTAINER:videos}
+      
+      servicebus:
+        enabled: true
+        connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING}
+        entity-name: ${AZURE_SERVICEBUS_TOPIC:video-events}
+        subscription-name: ${AZURE_SERVICEBUS_SUBSCRIPTION:search-index-updates}
+
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+azure:
+  search:
+    endpoint: ${AZURE_SEARCH_ENDPOINT}
+    api-key: ${AZURE_SEARCH_API_KEY}
+    index-name: ${AZURE_SEARCH_INDEX_NAME:video-search-index}
+
+resilience4j:
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 500
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+          - com.azure.core.exception.HttpResponseException
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 5s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 100
+        slow-call-duration-threshold: 2000ms
+  ratelimiter:
+    configs:
+      default:
+        limit-for-period: 100
+        limit-refresh-period: 1s
+        timeout-duration: 0
+        register-health-indicator: true
+
+logging:
+  level:
+    root: INFO
+    com.youtube.mvp.search: DEBUG
+    com.azure: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    level: "%5p [${spring.application.name},%X{traceId},%X{spanId}]"
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+azure:
+  cosmos:
+    endpoint: http://localhost:8081
+    key: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/JrQ==
+    database-name: youtube-mvp-local
+    container-name: videos
+
+  servicebus:
+    connection-string: Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE
+    
+  search:
+    endpoint: http://localhost:8080
+    api-key: test-api-key
+    index-name: video-search-index-local
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0

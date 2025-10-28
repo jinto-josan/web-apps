@@ -1,0 +1,15 @@
+spring:
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: false
+        endpoint: ${AZURE_APPCONFIG_ENDPOINT:}
+      
+      keyvault:
+        secret:
+          enabled: false
+          endpoint: ${AZURE_KEYVAULT_ENDPOINT:}
+
+logging:
+  level:
+    org.springframework.cloud.azure: DEBUG

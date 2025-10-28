@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: search-query-service-config
+  namespace: youtube-mvp
+data:
+  AZURE_COSMOS_DATABASE: youtube-mvp
+  AZURE_COSMOS_CONTAINER: videos
+  AZURE_SEARCH_INDEX_NAME: video-search-index
+  SPRING_PROFILES_ACTIVE: prod
