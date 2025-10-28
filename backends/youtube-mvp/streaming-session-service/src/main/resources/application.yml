@@ -1,0 +1,100 @@
+spring:
+  application:
+    name: streaming-session-service
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  
+  cloud:
+    azure:
+      cosmos:
+        endpoint: ${AZURE_COSMOS_ENDPOINT}
+        key: ${AZURE_COSMOS_KEY}
+        database: ${AZURE_COSMOS_DATABASE:youtube-mvp}
+      appconfiguration:
+        enabled: true
+        endpoint: ${AZURE_APP_CONFIGURATION_ENDPOINT}
+        connection-string: ${AZURE_APP_CONFIGURATION_CONNECTION_STRING}
+      keyvault:
+        secret:
+          enabled: true
+          endpoint: ${AZURE_KEY_VAULT_ENDPOINT}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI}
+          jwk-set-uri: ${OIDC_JWK_SET_URI}
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.youtube.mvp: DEBUG
+    com.azure: INFO
+
+# CDN Configuration
+cdn:
+  base-url: ${CDN_BASE_URL:https://cdn.example.com}
+
+# Video Configuration
+video:
+  format: ${VIDEO_FORMAT:hls} # hls, dash, mp4
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:default-secret-key-change-in-production-min-32-chars}
+  issuer: ${JWT_ISSUER:streaming-service}
+  expiration-hours: 1
+
+# Policy Configuration
+policy:
+  allow-anonymous: false
+  max-sessions-per-user: 5
+  geoip-enabled: true
+  drm-enabled: true
+
+# Rate Limiting
+resilience4j:
+  retry:
+    instances:
+      playback-service:
+        maxAttempts: 3
+        waitDuration: 500ms
+  circuitbreaker:
+    instances:
+      playback-service:
+        slidingWindowSize: 100
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+  bulkhead:
+    instances:
+      playback-service:
+        maxConcurrentCalls: 50
+  ratelimiter:
+    instances:
+      playback-service:
+        limitForPeriod: 100
+        limitRefreshPeriod: 1s
+        timeoutDuration: 1s
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
