@@ -1,0 +1,145 @@
+spring:
+  application:
+    name: comments-service
+  
+  cloud:
+    azure:
+      tenant-id: ${AZURE_TENANT_ID}
+      client-id: ${AZURE_CLIENT_ID}
+      client-secret: ${AZURE_CLIENT_SECRET}
+      
+      cosmos:
+        endpoint: ${AZURE_COSMOS_ENDPOINT}
+        key: ${AZURE_COSMOS_KEY}
+        database: ${AZURE_COSMOS_DATABASE:comments}
+        auto-create: true
+      
+      servicebus:
+        connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING}
+      
+      appconfiguration:
+        enabled: true
+        label: ${APP_CONFIG_LABEL:prod}
+        endpoints: ${AZURE_APP_CONFIGURATION_ENDPOINT}
+      
+      keyvault:
+        secret:
+          enabled: true
+          name: ${AZURE_KEY_VAULT_NAME}
+      
+      webpubsub:
+        connection-string: ${AZURE_WEBPUBSUB_CONNECTION_STRING}
+    
+    data:
+      redis:
+        host: ${REDIS_HOST}
+        port: ${REDIS_PORT:6379}
+        password: ${REDIS_PASSWORD:}
+        timeout: 2000ms
+        lettuce:
+          pool:
+            max-active: 8
+            max-idle: 8
+            min-idle: 0
+  
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      azuremonitor:
+        enabled: true
+        instrumentation-key: ${APPINSIGHTS_INSTRUMENTATION_KEY}
+
+azure:
+  cosmos:
+    database: ${AZURE_COSMOS_DATABASE:comments}
+    container: comments
+    throughput: 400
+    partition-key: /videoId
+  
+  servicebus:
+    comment-events:
+      topic-name: comment-events
+      subscription-name: default
+      
+  webpubsub:
+    hub: videos
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 5s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+    instances:
+      cosmosRepository:
+        baseConfig: default
+      serviceBusPublisher:
+        baseConfig: default
+  
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 500ms
+        exponentialBackoffMultiplier: 2
+    instances:
+      cosmosRepository:
+        baseConfig: default
+      eventPublisher:
+        baseConfig: default
+  
+  bulkhead:
+    configs:
+      default:
+        maxConcurrentCalls: 25
+        maxWaitDuration: 0
+    instances:
+      eventPublisher:
+        baseConfig: default
+  
+  ratelimiter:
+    configs:
+      default:
+        limitForPeriod: 10
+        limitRefreshPeriod: 60s
+        timeoutDuration: 5s
+    instances:
+      createComment:
+        baseConfig: default
+
+logging:
+  level:
+    root: INFO
+    com.youtube.commentsservice: INFO
+    com.azure: WARN
+    org.springframework: INFO
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+

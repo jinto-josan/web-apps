@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comments-service
+  labels:
+    app: comments-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: comments-service
+  template:
+    metadata:
+      labels:
+        app: comments-service
+    spec:
+      containers:
+      - name: comments-service
+        image: acr.azurecr.io/comments-service:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "k8s"
+        - name: AZURE_TENANT_ID
+          valueFrom:
+            secretKeyRef:
+              name: azure-credentials
+              key: tenant-id
+        - name: AZURE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: azure-credentials
+              key: client-id
+        - name: AZURE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: azure-credentials
+              key: client-secret
+        - name: AZURE_COSMOS_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: azure-cosmos
+              key: endpoint
+        - name: AZURE_COSMOS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: azure-cosmos
+              key: key
+        - name: AZURE_SERVICEBUS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: azure-servicebus
+              key: connection-string
+        - name: AZURE_WEBPUBSUB_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: azure-webpubsub
+              key: connection-string
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
