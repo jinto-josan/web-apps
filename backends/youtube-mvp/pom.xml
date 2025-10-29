@@ -80,6 +80,7 @@
         
         <!-- Live Streaming Services -->
         <module>live-ingest-service</module>
+        <module>live-streaming-service</module>
         <module>live-chat-service</module>
         
         <!-- Monetization Services -->

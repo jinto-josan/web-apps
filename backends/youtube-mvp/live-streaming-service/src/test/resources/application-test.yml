@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:15:///livestreaming_test
+    driver-class-name: org.testcontainers.jdbc.PostgreSQLJDBCDriver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9000/auth/realms/test
+
+logging:
+  level:
+    com.youtube.livestreaming: DEBUG
+    org.hibernate.SQL: DEBUG
+

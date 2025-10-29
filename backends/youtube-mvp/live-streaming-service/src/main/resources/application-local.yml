@@ -1,0 +1,57 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/livestreaming
+    username: postgres
+    password: postgres
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      ssl: false
+
+azure:
+  media-services:
+    account-name: local-account
+    resource-group: local-resource-group
+    subscription-id: local-subscription-id
+    client-id: local-client-id
+    client-secret: local-client-secret
+    tenant-id: local-tenant-id
+
+spring:
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: false
+      keyvault:
+        secret:
+          enabled: false
+      servicebus:
+        connection-string: Endpoint=sb://localhost;SharedAccessKeyName=local;SharedAccessKey=localkey
+      credential:
+        managed-identity-enabled: false
+
+logging:
+  level:
+    root: INFO
+    com.youtube.livestreaming: DEBUG
+    org.springframework.security: DEBUG
+
+server:
+  port: 8080
+
+# Disable security for local development
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9000/auth/realms/youtube
+

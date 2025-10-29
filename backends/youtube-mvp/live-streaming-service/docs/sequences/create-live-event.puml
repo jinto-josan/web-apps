@@ -1,0 +1,58 @@
+@startuml Create Live Event Sequence
+title Create Live Event - Sequence Diagram
+
+actor User
+participant "REST Controller" as Controller
+participant "Orchestration Service" as Service
+participant "Idempotency Service" as Idempotency
+participant "AMS Client" as AMS
+participant "Repository" as Repo
+participant "Event Publisher" as Publisher
+participant "PostgreSQL" as DB
+participant "Redis" as Redis
+
+User -> Controller: POST /api/v1/live/events\n(idempotency-key)
+Controller -> Controller: Validate request
+
+Controller -> Service: createLiveEvent(request, userId, key)
+Service -> Idempotency: processIdempotencyKey(key)
+
+alt Idempotency key exists
+    Idempotency -> Redis: GET idempotency:{key}
+    Redis --> Idempotency: existing request ID
+    Idempotency --> Service: return existing ID
+    Service --> Controller: return existing event (200)
+    Controller --> User: 200 OK with existing event
+else New request
+    Idempotency -> Redis: GET idempotency:{key}
+    Redis --> Idempotency: null
+    Idempotency --> Service: proceed
+    
+    Service -> Service: mapToEntity(request, userId)
+    Service -> Repo: save(liveEvent)
+    Repo -> DB: INSERT INTO live_events
+    DB --> Repo: success
+    Repo --> Service: saved event
+    
+    Service -> AMS: createLiveEvent(eventName, config)
+    AMS -> AMS: Create AMS Live Event
+    AMS --> Service: AMS reference
+    
+    Service -> Service: assignAmsReference(reference)
+    Service -> Repo: save(liveEvent with AMS ref)
+    Repo -> DB: UPDATE live_events
+    DB --> Repo: success
+    
+    Service -> Idempotency: storeRequestId(key, requestId)
+    Idempotency -> Redis: SET idempotency:{key} = {id}
+    Redis --> Idempotency: OK
+    
+    Service -> Publisher: publishAll(domainEvents)
+    Publisher -> Publisher: Publish to Service Bus
+    
+    Service --> Controller: created event
+    Controller --> User: 201 Created
+end
+
+@enduml
+

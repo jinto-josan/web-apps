@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: live-streaming-service
+  namespace: default
+  labels:
+    app: live-streaming-service
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: live-streaming-service
+  template:
+    metadata:
+      labels:
+        app: live-streaming-service
+        version: v1
+    spec:
+      containers:
+      - name: live-streaming-service
+        image: live-streaming-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            secretKeyRef:
+              name: live-streaming-secrets
+              key: postgres-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: live-streaming-secrets
+              key: postgres-username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: live-streaming-secrets
+              key: postgres-password
+        - name: SPRING_DATA_REDIS_HOST
+          value: "redis-service"
+        - name: AZURE_MEDIA_SERVICES_ACCOUNT_NAME
+          valueFrom:
+            secretKeyRef:
+              name: live-streaming-secrets
+              key: ams-account-name
+        - name: AZURE_MEDIA_SERVICES_RESOURCE_GROUP
+          valueFrom:
+            secretKeyRef:
+              name: live-streaming-secrets
+              key: ams-resource-group
+        - name: AZURE_SUBSCRIPTION_ID
+          valueFrom:
+            secretKeyRef:
+              name: live-streaming-secrets
+              key: azure-subscription-id
+        - name: AZURE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: live-streaming-secrets
+              key: azure-client-id
+        - name: AZURE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: live-streaming-secrets
+              key: azure-client-secret
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          failureThreshold: 30
+          timeoutSeconds: 3
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+

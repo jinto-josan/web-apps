@@ -1,0 +1,50 @@
+@startuml Live Event Lifecycle
+title Complete Live Event Lifecycle
+
+participant User
+participant "Live Streaming Service" as Service
+participant "AMS" as AMS
+participant "PostgreSQL" as DB
+participant "Service Bus" as Bus
+
+User -> Service: 1. Create Event\nPOST /api/v1/live/events
+Service -> DB: Store event (CREATED)
+Service -> AMS: Create AMS Live Event
+AMS --> Service: OK
+Service -> DB: Update with AMS ref
+DB --> Service: OK
+Service -> Bus: Publish LiveEventCreated
+Service --> User: 201 Created
+
+User -> Service: 2. Start Event\nPOST /api/v1/live/events/{id}/start
+Service -> DB: Update state (STARTING)
+Service -> AMS: Start Live Event
+AMS --> Service: OK
+Service -> Bus: Publish LiveEventStarted
+Service --> User: 200 OK
+
+AMS -> Service: 3. State Callback\n(state=RUNNING)
+Service -> DB: Update state (RUNNING)
+DB --> Service: OK
+Service --> AMS: 200 OK
+
+User -> Service: 4. Stop Event\nPOST /api/v1/live/events/{id}/stop
+Service -> DB: Update state (STOPPING)
+Service -> AMS: Stop Live Event
+AMS --> Service: OK
+Service -> Bus: Publish LiveEventStopped
+Service --> User: 200 OK
+
+AMS -> Service: 5. State Callback\n(state=STOPPED)
+Service -> DB: Update state (STOPPED)
+DB --> Service: OK
+Service --> AMS: 200 OK
+
+Service -> Service: 6. Archive\n(lazy process)
+Service -> DB: Update state (ARCHIVING)
+Service -> AMS: Archive Live Event
+AMS --> Service: asset URL
+Service -> DB: Update state (ARCHIVED)
+
+@enduml
+

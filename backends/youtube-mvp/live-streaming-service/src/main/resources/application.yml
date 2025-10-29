@@ -1,0 +1,159 @@
+spring:
+  application:
+    name: live-streaming-service
+  
+  datasource:
+    url: ${AZURE_POSTGRESQL_URL:jdbc:postgresql://localhost:5432/livestreaming}
+    username: ${AZURE_POSTGRESQL_USERNAME:postgres}
+    password: ${AZURE_POSTGRESQL_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+    show-sql: false
+  
+  data:
+    redis:
+      host: ${AZURE_REDIS_HOST:localhost}
+      port: ${AZURE_REDIS_PORT:6379}
+      password: ${AZURE_REDIS_PASSWORD:}
+      ssl: ${AZURE_REDIS_SSL:false}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+# Azure Media Services Configuration
+azure:
+  media-services:
+    account-name: ${AZURE_MEDIA_SERVICES_ACCOUNT_NAME}
+    resource-group: ${AZURE_MEDIA_SERVICES_RESOURCE_GROUP}
+    subscription-id: ${AZURE_SUBSCRIPTION_ID}
+    client-id: ${AZURE_CLIENT_ID}
+    client-secret: ${AZURE_CLIENT_SECRET}
+    tenant-id: ${AZURE_TENANT_ID}
+
+# Spring Cloud Azure
+spring:
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: ${AZURE_APP_CONFIGURATION_ENABLED:false}
+        endpoint: ${AZURE_APP_CONFIGURATION_ENDPOINT:}
+      keyvault:
+        secret:
+          enabled: ${AZURE_KEYVAULT_ENABLED:false}
+          endpoint: ${AZURE_KEYVAULT_ENDPOINT:}
+      servicebus:
+        connection-string: ${AZURE_SERVICE_BUS_CONNECTION_STRING:}
+        namespace: ${AZURE_SERVICE_BUS_NAMESPACE:}
+      credential:
+        managed-identity-enabled: ${AZURE_MANAGED_IDENTITY_ENABLED:false}
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      ams-client:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 5s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+        recordExceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+          - java.io.IOException
+      live-event-service:
+        registerHealthIndicator: true
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+  
+  retry:
+    instances:
+      ams-client:
+        maxAttempts: 3
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+      live-event-service:
+        maxAttempts: 3
+        waitDuration: 500ms
+  
+  timelimiter:
+    instances:
+      ams-client:
+        timeoutDuration: 10s
+      live-event-service:
+        timeoutDuration: 5s
+
+# Springdoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tagsSorter: alpha
+    operationsSorter: alpha
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Logging Configuration
+logging:
+  level:
+    com.youtube.livestreaming: DEBUG
+    org.springframework.web: INFO
+    org.hibernate: INFO
+    com.azure: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    include-exception: true
+

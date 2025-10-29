@@ -1,0 +1,52 @@
+@startuml Start Live Event Sequence
+title Start Live Event - Sequence Diagram
+
+actor User
+participant "REST Controller" as Controller
+participant "Orchestration Service" as Service
+participant "AMS Client" as AMS
+participant "Repository" as Repo
+participant "Event Publisher" as Publisher
+participant "PostgreSQL" as DB
+participant "Azure Media Services" as AMS_Cloud
+
+User -> Controller: POST /api/v1/live/events/{id}/start
+Controller -> Service: startLiveEvent(id, userId)
+
+Service -> Repo: findByIdAndUserId(id, userId)
+Repo -> DB: SELECT * FROM live_events
+DB --> Repo: live_event
+Repo --> Service: live event
+
+Service -> Service: liveEvent.start()
+Service -> Service: Update state to STARTING
+Service -> Repo: save(liveEvent)
+Repo -> DB: UPDATE live_events
+DB --> Repo: success
+
+Service -> Publisher: publishAll(domainEvents)
+Publisher -> Publisher: Publish LiveEventStarted event
+
+Service -> AMS: startLiveEvent(liveEventName)
+AMS -> AMS_Cloud: AMS API: Start Live Event
+AMS_Cloud --> AMS: OK
+AMS --> Service: success
+
+AMS_Cloud -> Controller: POST /api/v1/events/ams-live-callback\n(state=RUNNING)
+Controller -> Service: handleAmsCallback(id, state)
+Service -> Repo: findById(id)
+Repo -> DB: SELECT * FROM live_events
+DB --> Repo: live_event
+Repo --> Service: live event
+
+Service -> Service: liveEvent.confirmStarted(state)
+Service -> Service: Update state to RUNNING
+Service -> Repo: save(liveEvent)
+Repo -> DB: UPDATE live_events
+DB --> Repo: success
+
+Service --> Controller: success
+Controller --> User: 200 OK
+
+@enduml
+
