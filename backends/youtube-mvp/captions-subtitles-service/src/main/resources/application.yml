@@ -1,0 +1,141 @@
+spring:
+  application:
+    name: captions-subtitles-service
+  
+  cloud:
+    azure:
+      credential:
+        managed-identity-enabled: true
+      profile:
+        tenant-id: ${AZURE_TENANT_ID}
+        cloud-type: Azure
+      
+      cosmos:
+        endpoint: ${AZURE_COSMOS_ENDPOINT}
+        key: ${AZURE_COSMOS_KEY}
+        database: ${AZURE_COSMOS_DATABASE:youtube-mvp}
+        consistency-level: Session
+        
+      servicebus:
+        connection-string: ${AZURE_SERVICE_BUS_CONNECTION_STRING}
+        entity-name: ${AZURE_SERVICE_BUS_TOPIC:captions}
+        
+      appconfiguration:
+        enabled: true
+        endpoint: ${AZURE_APP_CONFIG_ENDPOINT}
+        
+      keyvault:
+        secrets:
+          enabled: true
+          endpoint: ${AZURE_KEY_VAULT_ENDPOINT}
+    
+    data:
+      redis:
+        host: ${REDIS_HOST:localhost}
+        port: ${REDIS_PORT:6379}
+        password: ${REDIS_PASSWORD:}
+        ssl:
+          enabled: ${REDIS_SSL_ENABLED:false}
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_ISSUER_URI}
+          jwk-set-uri: ${OAUTH2_JWK_SET_URI}
+  
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+# Azure Service Configuration
+azure:
+  storage:
+    connection-string: ${AZURE_STORAGE_CONNECTION_STRING}
+    captions-container: captions
+  
+  speech:
+    key: ${AZURE_SPEECH_KEY}
+    region: ${AZURE_SPEECH_REGION}
+  
+  translator:
+    endpoint: ${AZURE_TRANSLATOR_ENDPOINT}
+    key: ${AZURE_TRANSLATOR_KEY}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      stt-service:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+      translator-service:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+  
+  retry:
+    instances:
+      stt-service:
+        maxAttempts: 3
+        waitDuration: 2s
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - java.net.SocketTimeoutException
+          - java.io.IOException
+      translator-service:
+        maxAttempts: 3
+        waitDuration: 2s
+        exponentialBackoffMultiplier: 2
+      blob-storage:
+        maxAttempts: 3
+        waitDuration: 1s
+  
+  timelimiter:
+    instances:
+      stt-service:
+        timeoutDuration: 30s
+      translator-service:
+        timeoutDuration: 20s
+
+logging:
+  level:
+    root: INFO
+    com.youtube.captionssubtitlesservice: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.springframework.data.cosmos: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method

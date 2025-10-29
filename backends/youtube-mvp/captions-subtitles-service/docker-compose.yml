@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  cosmosdb:
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+    container_name: cosmosdb-emulator
+    hostname: localhost
+    ports:
+      - "8081:8081"
+    environment:
+      AZURE_COSMOS_EMULATOR_PARTITION_COUNT: 25
+      AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: true
+    
+  redis:
+    image: redis:7-alpine
+    container_name: redis-emulator
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: azurite-emulator
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+    volumes:
+      - azurite-data:/data
+      
+  captions-service:
+    build: .
+    container_name: captions-service
+    ports:
+      - "8080:8080"
+    environment:
+      AZURE_COSMOS_ENDPOINT: https://cosmosdb-emulator:8081
+      AZURE_COSMOS_KEY: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==
+      AZURE_STORAGE_CONNECTION_STRING: "UseDevelopmentStorage=true"
+      AZURE_SPEECH_KEY: local-dev-key
+      AZURE_SPEECH_REGION: centralus
+      REDIS_HOST: redis-emulator
+    depends_on:
+      - cosmosdb
+      - redis
+      - azurite
+    profiles:
+      - dev
+
+volumes:
+  azurite-data:
