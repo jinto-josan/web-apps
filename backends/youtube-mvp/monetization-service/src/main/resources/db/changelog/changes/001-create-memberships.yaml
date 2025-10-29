@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-memberships
+      author: monetization
+      changes:
+        - createTable:
+            tableName: memberships
+            columns:
+              - column: {name: id, type: varchar(64), constraints: {primaryKey: true, nullable: false}}
+              - column: {name: channel_id, type: varchar(128), constraints: {nullable: false}}
+              - column: {name: subscriber_id, type: varchar(128), constraints: {nullable: false}}
+              - column: {name: tier, type: varchar(32), constraints: {nullable: false}}
+              - column: {name: monthly_fee_amount, type: numeric(19,4), constraints: {nullable: false}}
+              - column: {name: monthly_fee_currency, type: varchar(3), constraints: {nullable: false}}
+              - column: {name: status, type: varchar(32), constraints: {nullable: false}}
+              - column: {name: start_date, type: timestamp, constraints: {nullable: false}}
+              - column: {name: end_date, type: timestamp}
+              - column: {name: next_billing_date, type: timestamp}
+              - column: {name: payment_method_id, type: varchar(128)}
+              - column: {name: external_subscription_id, type: varchar(128)}
+              - column: {name: version, type: int, constraints: {nullable: false}}
+              - column: {name: created_at, type: timestamp, constraints: {nullable: false}}
+              - column: {name: updated_at, type: timestamp, constraints: {nullable: false}}
+              - column: {name: etag, type: varchar(128)}
+        - addUniqueConstraint:
+            tableName: memberships
+            columnNames: channel_id, subscriber_id
+            constraintName: uk_membership_channel_subscriber

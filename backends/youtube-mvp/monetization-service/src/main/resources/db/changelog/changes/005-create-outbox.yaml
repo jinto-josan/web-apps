@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-create-outbox
+      author: monetization
+      changes:
+        - createTable:
+            tableName: outbox
+            columns:
+              - column: {name: id, type: varchar(64), constraints: {primaryKey: true, nullable: false}}
+              - column: {name: aggregate_type, type: varchar(128), constraints: {nullable: false}}
+              - column: {name: aggregate_id, type: varchar(64), constraints: {nullable: false}}
+              - column: {name: event_type, type: varchar(128), constraints: {nullable: false}}
+              - column: {name: payload_json, type: clob, constraints: {nullable: false}}
+              - column: {name: occurred_at, type: timestamp, constraints: {nullable: false}}
+              - column: {name: processed, type: boolean, constraints: {nullable: false}, defaultValueBoolean: false}

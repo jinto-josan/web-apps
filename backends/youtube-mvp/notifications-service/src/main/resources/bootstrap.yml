@@ -1,0 +1,9 @@
+spring:
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: false
+      keyvault:
+        enabled: false
+
+

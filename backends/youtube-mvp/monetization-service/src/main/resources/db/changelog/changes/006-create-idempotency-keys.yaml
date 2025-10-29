@@ -1,0 +1,12 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-create-idempotency-keys
+      author: monetization
+      changes:
+        - createTable:
+            tableName: idempotency_keys
+            columns:
+              - column: {name: key, type: varchar(128), constraints: {primaryKey: true, nullable: false}}
+              - column: {name: result, type: clob}
+              - column: {name: expires_at, type: timestamp, constraints: {nullable: false}}
+              - column: {name: created_at, type: timestamp, constraints: {nullable: false}}

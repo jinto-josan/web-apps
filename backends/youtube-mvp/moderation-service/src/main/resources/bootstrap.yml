@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: moderation-service
+  config:
+    import: optional:azure-appconfiguration:
+
+

@@ -1,0 +1,33 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-create-payments
+      author: monetization
+      changes:
+        - createTable:
+            tableName: payments
+            columns:
+              - column: {name: id, type: varchar(64), constraints: {primaryKey: true, nullable: false}}
+              - column: {name: invoice_id, type: varchar(64), constraints: {nullable: false}}
+              - column: {name: membership_id, type: varchar(64), constraints: {nullable: false}}
+              - column: {name: payment_method_id, type: varchar(128), constraints: {nullable: false}}
+              - column: {name: amount, type: numeric(19,4), constraints: {nullable: false}}
+              - column: {name: currency, type: varchar(3), constraints: {nullable: false}}
+              - column: {name: status, type: varchar(32), constraints: {nullable: false}}
+              - column: {name: external_payment_id, type: varchar(128), constraints: {nullable: false, unique: true}}
+              - column: {name: transaction_date, type: timestamp, constraints: {nullable: false}}
+              - column: {name: failure_reason, type: text}
+              - column: {name: refunded_date, type: timestamp}
+              - column: {name: version, type: int, constraints: {nullable: false}}
+              - column: {name: created_at, type: timestamp, constraints: {nullable: false}}
+              - column: {name: updated_at, type: timestamp, constraints: {nullable: false}}
+              - column: {name: etag, type: varchar(128)}
+        - createIndex:
+            tableName: payments
+            indexName: idx_payments_invoice
+            columns:
+              - column: {name: invoice_id}
+        - createIndex:
+            tableName: payments
+            indexName: idx_payments_membership
+            columns:
+              - column: {name: membership_id}

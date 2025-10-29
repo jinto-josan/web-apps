@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: ads-decision-service
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/ads}
+    username: ${POSTGRES_USER:ads}
+    password: ${POSTGRES_PASSWORD:ads}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:https://login.microsoftonline.com/<tenant>/v2.0}
+
+azure:
+  cosmos:
+    endpoint: ${AZURE_COSMOS_ENDPOINT:http://localhost:8081}
+    key: ${AZURE_COSMOS_KEY:local-key}
+    database: ${AZURE_COSMOS_DATABASE:ads}
+  servicebus:
+    namespace: ${AZURE_SERVICEBUS_NAMESPACE:local}
+  eventhubs:
+    namespace: ${AZURE_EVENTHUBS_NAMESPACE:local}
+  storage:
+    blob:
+      endpoint: ${AZURE_BLOB_ENDPOINT:http://127.0.0.1:10000/devstoreaccount1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+
+server:
+  port: ${PORT:8080}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+resilience4j:
+  retry:
+    instances:
+      decision:
+        max-attempts: 3
+        wait-duration: 100ms
+  circuitbreaker:
+    instances:
+      decision:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 50
+        failure-rate-threshold: 50
+  timelimiter:
+    instances:
+      decision:
+        timeout-duration: 300ms
+
+logging:
+  level:
+    root: INFO
+    com.youtube.adsdecisionservice: DEBUG
+
+

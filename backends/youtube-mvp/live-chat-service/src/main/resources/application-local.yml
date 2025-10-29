@@ -1,0 +1,30 @@
+spring:
+  profiles:
+    active: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/livechat
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: update
+  redis:
+    host: localhost
+    port: 6379
+
+azure:
+  cosmos:
+    endpoint: http://localhost:8081
+    key: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDu3Cj3c6Azj0Q==
+    database: livechat
+  webpubsub:
+    connection-string: Endpoint=http://localhost:8080;AccessKey=local;Version=1.0;
+    hub: live-chat
+  servicebus:
+    connection-string: Endpoint=sb://local/;SharedAccessKeyName=local;SharedAccessKey=local;
+
+logging:
+  level:
+    root: INFO
+
+

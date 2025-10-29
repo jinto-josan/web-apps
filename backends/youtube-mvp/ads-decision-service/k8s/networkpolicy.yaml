@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ads-decision-service-deny-all
+spec:
+  podSelector:
+    matchLabels:
+      app: ads-decision-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from: []
+  egress:
+    - to: []
+
+

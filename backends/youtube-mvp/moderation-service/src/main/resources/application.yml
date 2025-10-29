@@ -1,0 +1,110 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: moderation-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_ISSUER_URI:https://login.microsoftonline.com/<tenant>/v2.0}
+      client:
+        registration:
+          default:
+            client-id: ${AZURE_CLIENT_ID:}
+            client-secret: ${AZURE_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+        provider:
+          default:
+            issuer-uri: ${OAUTH2_ISSUER_URI:https://login.microsoftonline.com/<tenant>/v2.0}
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/moderation}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  cloud:
+    azure:
+      credential:
+        client-id: ${AZURE_CLIENT_ID:}
+        client-secret: ${AZURE_CLIENT_SECRET:}
+        tenant-id: ${AZURE_TENANT_ID:}
+      appconfiguration:
+        enabled: true
+      keyvault:
+        secret:
+          enabled: true
+      servicebus:
+        namespace: ${AZURE_SERVICEBUS_NAMESPACE:}
+        profile:
+          namespace: ${AZURE_SERVICEBUS_NAMESPACE:}
+      cosmos:
+        endpoint: ${AZURE_COSMOS_ENDPOINT:}
+        key: ${AZURE_COSMOS_KEY:}
+        database: ${AZURE_COSMOS_DB:moderation}
+
+moderation:
+  policies:
+    - policyCode: HATE_SPEECH
+      autoRejectScore: 0.9
+      autoApproveBelow: 0.1
+    - policyCode: SEXUAL
+      autoRejectScore: 0.9
+      autoApproveBelow: 0.1
+    - policyCode: VIOLENCE
+      autoRejectScore: 0.9
+      autoApproveBelow: 0.1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    enabled: true
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui
+
+logging:
+  level:
+    root: INFO
+    com.youtube.moderationservice: DEBUG
+
+resilience4j:
+  retry:
+    instances:
+      contentSafety:
+        max-attempts: 3
+        wait-duration: 200ms
+  circuitbreaker:
+    instances:
+      contentSafety:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+  timelimiter:
+    instances:
+      contentSafety:
+        timeout-duration: 3s
+
+azure:
+  content-safety:
+    endpoint: ${AZURE_CONTENT_SAFETY_ENDPOINT:}
+    key: ${AZURE_CONTENT_SAFETY_KEY:}
+
+

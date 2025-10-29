@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: live-chat-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: live-chat-service
+  template:
+    metadata:
+      labels:
+        app: live-chat-service
+    spec:
+      containers:
+        - name: live-chat-service
+          image: live-chat-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: default
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+
+

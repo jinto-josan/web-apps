@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ads-decision-service
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ads-decision-service
+
+

@@ -1,0 +1,31 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ads
+    username: ads
+    password: ads
+  jpa:
+    show-sql: true
+  redis:
+    host: localhost
+    port: 6379
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8089/realms/local
+
+azure:
+  cosmos:
+    endpoint: http://localhost:8081
+    key: local-key
+    database: ads
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+

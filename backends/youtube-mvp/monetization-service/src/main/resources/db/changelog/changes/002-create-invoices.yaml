@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-invoices
+      author: monetization
+      changes:
+        - createTable:
+            tableName: invoices
+            columns:
+              - column: {name: id, type: varchar(64), constraints: {primaryKey: true, nullable: false}}
+              - column: {name: membership_id, type: varchar(64), constraints: {nullable: false}}
+              - column: {name: channel_id, type: varchar(128), constraints: {nullable: false}}
+              - column: {name: subscriber_id, type: varchar(128), constraints: {nullable: false}}
+              - column: {name: amount, type: numeric(19,4), constraints: {nullable: false}}
+              - column: {name: currency, type: varchar(3), constraints: {nullable: false}}
+              - column: {name: status, type: varchar(32), constraints: {nullable: false}}
+              - column: {name: due_date, type: timestamp, constraints: {nullable: false}}
+              - column: {name: paid_date, type: timestamp}
+              - column: {name: payment_id, type: varchar(64)}
+              - column: {name: version, type: int, constraints: {nullable: false}}
+              - column: {name: created_at, type: timestamp, constraints: {nullable: false}}
+              - column: {name: updated_at, type: timestamp, constraints: {nullable: false}}
+              - column: {name: etag, type: varchar(128)}

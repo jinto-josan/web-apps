@@ -1,0 +1,67 @@
+spring:
+  application:
+    name: live-chat-service
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/livechat}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:https://example.b2clogin.com/tenant/v2.0/}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+
+azure:
+  cosmos:
+    database: ${COSMOS_DB_NAME:livechat}
+    endpoint: ${COSMOS_ENDPOINT:http://localhost:8081}
+    key: ${COSMOS_KEY:your-key}
+  servicebus:
+    namespace: ${SERVICEBUS_NAMESPACE:}
+    connection-string: ${SERVICEBUS_CONNECTION_STRING:}
+  webpubsub:
+    connection-string: ${WEBPUBSUB_CONNECTION_STRING:}
+    hub: ${WEBPUBSUB_HUB:live-chat}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+resilience4j:
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 3s
+  retry:
+    instances:
+      outbound:
+        maxRetryAttempts: 3
+        waitDuration: 200ms
+
+otel:
+  exporter:
+    azuremonitor:
+      connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
+
+

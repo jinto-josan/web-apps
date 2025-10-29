@@ -1,0 +1,45 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: notifications-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${SECURITY_OIDC_ISSUER_URI:https://login.microsoftonline.com/<tenant>/v2.0}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+azure:
+  cosmos:
+    endpoint: ${AZURE_COSMOS_ENDPOINT:http://localhost:8081}
+    key: ${AZURE_COSMOS_KEY:local-key}
+    database: ${AZURE_COSMOS_DATABASE:notifications}
+
+  messaging:
+    servicebus:
+      namespace: ${AZURE_SERVICEBUS_NAMESPACE:local}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+app:
+  servicebus:
+    topics:
+      notifications: ${SERVICEBUS_TOPIC_NOTIFICATIONS:notifications-jobs}
+
+resilience4j:
+  retry:
+    instances:
+      providerCalls:
+        maxAttempts: 3
+        waitDuration: 500ms
+
+

@@ -1,0 +1,31 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-create-ledger
+      author: monetization
+      changes:
+        - createTable:
+            tableName: ledger
+            columns:
+              - column: {name: id, type: varchar(64), constraints: {primaryKey: true, nullable: false}}
+              - column: {name: transaction_ref, type: varchar(64), constraints: {nullable: false}}
+              - column: {name: account_type, type: varchar(32), constraints: {nullable: false}}
+              - column: {name: account_code, type: varchar(64), constraints: {nullable: false}}
+              - column: {name: entry_type, type: varchar(16), constraints: {nullable: false}}
+              - column: {name: amount, type: numeric(19,4), constraints: {nullable: false}}
+              - column: {name: currency, type: varchar(3), constraints: {nullable: false}}
+              - column: {name: transaction_date, type: timestamp, constraints: {nullable: false}}
+              - column: {name: description, type: text}
+              - column: {name: related_ref, type: varchar(64)}
+              - column: {name: version, type: int, constraints: {nullable: false}}
+              - column: {name: created_at, type: timestamp, constraints: {nullable: false}}
+              - column: {name: updated_at, type: timestamp, constraints: {nullable: false}}
+        - createIndex:
+            tableName: ledger
+            indexName: idx_ledger_tx_ref
+            columns:
+              - column: {name: transaction_ref}
+        - createIndex:
+            tableName: ledger
+            indexName: idx_ledger_account_code
+            columns:
+              - column: {name: account_code}

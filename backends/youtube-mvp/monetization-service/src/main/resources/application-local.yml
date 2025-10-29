@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/monetization
+    username: postgres
+    password: postgres
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+azure:
+  servicebus:
+    # Use local emulator
+    connection-string: Endpoint=sb://localhost:10000;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=emulator_key
+
+logging:
+  level:
+    root: DEBUG
+    com.youtube.monetizationservice: TRACE
+
