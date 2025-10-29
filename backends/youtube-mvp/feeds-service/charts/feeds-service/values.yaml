@@ -1,0 +1,120 @@
+replicaCount: 3
+
+image:
+  repository: acr.azurecr.io/feeds-service
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+    - ALL
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: api.youtube.com
+      paths:
+        - path: /api/v1/feeds
+          pathType: Prefix
+  tls:
+    - secretName: api-youtube-tls
+      hosts:
+        - api.youtube.com
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+config:
+  redis:
+    host: feeds-redis
+    port: 6379
+  cosmos:
+    uri: https://feeds-db.documents.azure.com:443/
+    database: feeds-db
+  app-config:
+    endpoint: https://feeds-app-config.azconfig.io
+  key-vault:
+    endpoint: https://feeds-key-vault.vault.azure.net/
+
+secrets:
+  redis:
+    password: ""
+  cosmos:
+    key: ""
+  servicebus:
+    connectionString: ""
+  app-insights:
+    connectionString: ""
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+
+postgresql:
+  enabled: false
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+

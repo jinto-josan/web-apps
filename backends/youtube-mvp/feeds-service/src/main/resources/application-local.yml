@@ -1,0 +1,45 @@
+spring:
+  profiles:
+    active: local
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      ssl:
+        enabled: false
+      lettuce:
+        pool:
+          max-active: 4
+      
+    cosmos:
+      uri: https://localhost:8081
+      key: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==
+      database: feeds-db
+  
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: false
+      keyvault:
+        secret:
+          enabled: false
+      servicebus:
+        connection-string: Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=TestKey
+
+management:
+  metrics:
+    export:
+      azure-monitor:
+        enabled: false
+
+opentelemetry:
+  exporter:
+    azure-monitor:
+      enabled: false
+
+logging:
+  level:
+    root: INFO
+    com.youtube.mvp.feeds: DEBUG
+

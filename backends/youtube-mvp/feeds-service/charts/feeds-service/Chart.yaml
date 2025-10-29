@@ -1,0 +1,22 @@
+apiVersion: v2
+name: feeds-service
+description: A Helm chart for feeds service
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - feeds
+  - youtube
+  - mvp
+maintainers:
+  - name: YouTube MVP Team
+sources:
+  - https://github.com/youtube-mvp/feeds-service
+dependencies:
+  - name: postgresql
+    version: 12.0.0
+    condition: postgresql.enabled
+  - name: redis
+    version: 17.0.0
+    condition: redis.enabled
+

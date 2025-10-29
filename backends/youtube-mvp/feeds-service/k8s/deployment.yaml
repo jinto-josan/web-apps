@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feeds-service
+  namespace: youtube-mvp
+  labels:
+    app: feeds-service
+    tier: backend
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: feeds-service
+  template:
+    metadata:
+      labels:
+        app: feeds-service
+        tier: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      serviceAccountName: feeds-service
+      containers:
+      - name: feeds-service
+        image: acr.azurecr.io/feeds-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "azure"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: feeds-service-config
+              key: redis.host
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: feeds-service-config
+              key: redis.port
+        - name: REDIS_SSL_ENABLED
+          value: "true"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: feeds-service-secrets
+              key: redis.password
+        - name: COSMOS_URI
+          valueFrom:
+            configMapKeyRef:
+              name: feeds-service-config
+              key: cosmos.uri
+        - name: COSMOS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: feeds-service-secrets
+              key: cosmos.key
+        - name: COSMOS_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: feeds-service-config
+              key: cosmos.database
+        - name: COSMOS_RUS
+          value: "400"
+        - name: SERVICE_BUS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: feeds-service-secrets
+              key: servicebus.connection-string
+        - name: APP_CONFIG_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: feeds-service-config
+              key: app-config.endpoint
+        - name: KEY_VAULT_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: feeds-service-config
+              key: key-vault.endpoint
+        - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: feeds-service-secrets
+              key: app-insights.connection-string
+        - name: AZURE_MONITOR_ENABLED
+          value: "true"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feeds-service
+  namespace: youtube-mvp
+  labels:
+    app: feeds-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: feeds-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: feeds-service-pdb
+  namespace: youtube-mvp
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: feeds-service
+

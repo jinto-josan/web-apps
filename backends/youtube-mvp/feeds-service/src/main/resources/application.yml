@@ -1,0 +1,122 @@
+spring:
+  application:
+    name: feeds-service
+  
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:azure}
+  
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    default-property-inclusion: NON_NULL
+  
+  cache:
+    type: redis
+    redis:
+      time-to-live: 900000 # 15 minutes
+      cache-null-values: false
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+      
+    cosmos:
+      uri: ${COSMOS_URI:https://localhost:8081}
+      key: ${COSMOS_KEY:C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==}
+      database: ${COSMOS_DATABASE:feeds-db}
+      request-unit: ${COSMOS_RUS:400}
+  
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: ${APP_CONFIG_ENABLED:true}
+        endpoint: ${APP_CONFIG_ENDPOINT:}
+        stores:
+          - endpoint: ${APP_CONFIG_ENDPOINT}
+      
+      keyvault:
+        secret:
+          enabled: ${KEY_VAULT_ENABLED:true}
+          endpoint: ${KEY_VAULT_ENDPOINT}
+          properties:
+            - secret-name: cosmost-key
+      
+      servicebus:
+        connection-string: ${SERVICE_BUS_CONNECTION_STRING:}
+        consumer:
+          queues:
+            - name: video-published
+              queue-name: video-published-queue
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics,env
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      azure-monitor:
+        enabled: ${AZURE_MONITOR_ENABLED:true}
+        connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
+
+logging:
+  level:
+    root: INFO
+    com.youtube.mvp.feeds: DEBUG
+    io.opentelemetry: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+resilience4j:
+  retry:
+    instances:
+      feedRepository:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+  circuitbreaker:
+    instances:
+      feedRepository:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 10s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+  show-actuator: true
+
+info:
+  app:
+    name: Feeds Service
+    description: Personalized feeds service with ad slots
+    version: 1.0.0
+
