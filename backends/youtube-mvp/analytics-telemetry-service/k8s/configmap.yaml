@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: analytics-telemetry-service-config
+  namespace: youtube-mvp
+data:
+  redis.host: "redis-service.youtube-mvp.svc.cluster.local"
+  redis.port: "6379"
+  eventhubs.event-hub-name: "telemetry-events"
+  storage.dlq-container-name: "telemetry-dlq"
+  app-config.endpoint: "https://app-config.azure.net"
+  key-vault.endpoint: "https://key-vault.vault.azure.net"
+  jwt.issuer-uri: "https://your-tenant.b2clogin.com/your-tenant.onmicrosoft.com/v2.0/"
+

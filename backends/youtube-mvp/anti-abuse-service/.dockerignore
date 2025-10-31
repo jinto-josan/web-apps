@@ -1,0 +1,15 @@
+target/
+.git/
+.gitignore
+.mvn/
+mvnw
+mvnw.cmd
+*.md
+docs/
+charts/
+k8s/
+Dockerfile
+docker-compose.yml
+.dockerignore
+Makefile
+

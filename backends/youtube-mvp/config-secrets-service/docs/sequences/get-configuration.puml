@@ -1,0 +1,78 @@
+@startuml Get Configuration Sequence
+participant Client
+participant ConfigController
+participant ConfigApplicationService
+participant RbacCheckPort
+participant CachePort
+participant AppConfigurationPort
+participant ConfigurationRepository
+participant AuditLoggerPort
+
+Client -> ConfigController: GET /api/v1/config/{scope}/{key}\nAuthorization: Bearer {JWT}
+activate ConfigController
+
+ConfigController -> ConfigApplicationService: getConfiguration(scope, key, userId, tenantId, ifNoneMatch)
+activate ConfigApplicationService
+
+ConfigApplicationService -> RbacCheckPort: canRead(userId, tenantId, scope)
+activate RbacCheckPort
+RbacCheckPort -> RbacCheckPort: Validate JWT claims
+RbacCheckPort --> ConfigApplicationService: true/false
+deactivate RbacCheckPort
+
+alt Access Denied
+    ConfigApplicationService -> AuditLoggerPort: log(ACCESS_DENIED)
+    ConfigApplicationService --> ConfigController: ResponseStatusException(403)
+    ConfigController --> Client: 403 Forbidden
+else Access Granted
+    ConfigApplicationService -> CachePort: get("config:{scope}:{key}")
+    activate CachePort
+    CachePort --> ConfigApplicationService: Optional<String>
+    deactivate CachePort
+    
+    alt Cache Hit
+        ConfigApplicationService -> ConfigurationRepository: findByScopeAndKey(scope, key)
+        activate ConfigurationRepository
+        ConfigurationRepository --> ConfigApplicationService: Optional<ConfigurationEntry>
+        deactivate ConfigurationRepository
+        
+        alt ETag Match (If-None-Match)
+            ConfigApplicationService --> ConfigController: ResponseStatusException(304)
+            ConfigController --> Client: 304 Not Modified
+        else ETag Mismatch
+            ConfigApplicationService -> AuditLoggerPort: log(CONFIG_READ)
+            ConfigApplicationService --> ConfigController: ConfigResponse
+            ConfigController --> Client: 200 OK + ETag
+        end
+    else Cache Miss
+        ConfigApplicationService -> AppConfigurationPort: getConfiguration(scope, key, null)
+        activate AppConfigurationPort
+        AppConfigurationPort -> AppConfigurationPort: Call Azure App Config SDK
+        AppConfigurationPort --> ConfigApplicationService: Optional<ConfigurationEntry>
+        deactivate AppConfigurationPort
+        
+        alt Configuration Found
+            ConfigApplicationService -> ConfigurationRepository: save(entry)
+            activate ConfigurationRepository
+            ConfigurationRepository --> ConfigApplicationService: ConfigurationEntry
+            deactivate ConfigurationRepository
+            
+            ConfigApplicationService -> CachePort: put("config:{scope}:{key}", "1", 300)
+            activate CachePort
+            CachePort --> ConfigApplicationService: void
+            deactivate CachePort
+            
+            ConfigApplicationService -> AuditLoggerPort: log(CONFIG_READ)
+            ConfigApplicationService --> ConfigController: ConfigResponse
+            ConfigController --> Client: 200 OK + ETag
+        else Configuration Not Found
+            ConfigApplicationService --> ConfigController: ResponseStatusException(404)
+            ConfigController --> Client: 404 Not Found
+        end
+    end
+end
+
+deactivate ConfigApplicationService
+deactivate ConfigController
+@enduml
+

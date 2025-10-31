@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: experimentation-service
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: ${AZURE_APP_CONFIG_ENABLED:true}
+        endpoint: ${AZURE_APP_CONFIG_ENDPOINT:}
+        connection-string: ${AZURE_APP_CONFIG_CONNECTION_STRING:}
+      keyvault:
+        secret:
+          enabled: ${AZURE_KEY_VAULT_ENABLED:true}
+          endpoint: ${AZURE_KEY_VAULT_ENDPOINT:}
+

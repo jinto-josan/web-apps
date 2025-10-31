@@ -1,0 +1,143 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: edge-cdn-control-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_ISSUER_URI:https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0}
+      client:
+        registration:
+          default:
+            client-id: ${AZURE_CLIENT_ID:}
+            client-secret: ${AZURE_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+        provider:
+          default:
+            issuer-uri: ${OAUTH2_ISSUER_URI:https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0}
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/edgecdncontrol}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  cloud:
+    azure:
+      credential:
+        client-id: ${AZURE_CLIENT_ID:}
+        client-secret: ${AZURE_CLIENT_SECRET:}
+        tenant-id: ${AZURE_TENANT_ID:}
+      appconfiguration:
+        enabled: ${AZURE_APP_CONFIG_ENABLED:true}
+        endpoint: ${AZURE_APP_CONFIG_ENDPOINT:}
+      keyvault:
+        secret:
+          enabled: ${AZURE_KEY_VAULT_ENABLED:true}
+      servicebus:
+        namespace: ${AZURE_SERVICEBUS_NAMESPACE:}
+        profile:
+          namespace: ${AZURE_SERVICEBUS_NAMESPACE:}
+      cosmos:
+        endpoint: ${AZURE_COSMOS_ENDPOINT:}
+        key: ${AZURE_COSMOS_KEY:}
+        database: ${AZURE_COSMOS_DB:edgecdncontrol}
+
+azure:
+  subscription-id: ${AZURE_SUBSCRIPTION_ID:}
+  tenant-id: ${AZURE_TENANT_ID:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  tracing:
+    enabled: true
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui
+    enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.youtube.edgecdncontrol: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+resilience4j:
+  retry:
+    instances:
+      azureFrontDoor:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+  circuitbreaker:
+    instances:
+      azureFrontDoor:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        record-exceptions:
+          - java.net.SocketTimeoutException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.HttpServerErrorException
+  timelimiter:
+    instances:
+      azureFrontDoor:
+        timeout-duration: 30s
+  ratelimiter:
+    instances:
+      azureFrontDoor:
+        limit-for-period: 10
+        limit-refresh-period: 1s
+        timeout-duration: 5s
+
+edge-cdn-control:
+  rules:
+    validation:
+      enabled: true
+    drift-detection:
+      enabled: true
+      interval-minutes: 60
+

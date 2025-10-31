@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:15-alpine:///testdb
+    username: test
+    password: test
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: false
+      keyvault:
+        secret:
+          enabled: false
+
+azure:
+  subscription-id: test-subscription-id
+  tenant-id: test-tenant-id
+
+logging:
+  level:
+    root: WARN
+    com.youtube.edgecdncontrol: DEBUG
+

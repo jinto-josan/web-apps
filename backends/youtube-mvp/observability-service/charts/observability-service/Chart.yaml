@@ -1,0 +1,14 @@
+apiVersion: v2
+name: observability-service
+description: Observability & SRE Tools Service Helm Chart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - observability
+  - slo
+  - synthetic-checks
+  - sre
+maintainers:
+  - name: YouTube MVP Team
+

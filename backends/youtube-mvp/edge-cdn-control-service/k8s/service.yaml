@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-cdn-control-service
+  namespace: youtube-platform
+  labels:
+    app: edge-cdn-control-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: edge-cdn-control-service
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+

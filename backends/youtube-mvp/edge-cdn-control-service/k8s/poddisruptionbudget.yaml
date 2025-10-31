@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: edge-cdn-control-service-pdb
+  namespace: youtube-platform
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: edge-cdn-control-service
+

@@ -1,0 +1,101 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: anti-abuse-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_ISSUER_URI:https://login.microsoftonline.com/<tenant>/v2.0}
+      client:
+        registration:
+          default:
+            client-id: ${AZURE_CLIENT_ID:}
+            client-secret: ${AZURE_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+        provider:
+          default:
+            issuer-uri: ${OAUTH2_ISSUER_URI:https://login.microsoftonline.com/<tenant>/v2.0}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  cloud:
+    azure:
+      credential:
+        client-id: ${AZURE_CLIENT_ID:}
+        client-secret: ${AZURE_CLIENT_SECRET:}
+        tenant-id: ${AZURE_TENANT_ID:}
+      keyvault:
+        secret:
+          enabled: true
+          endpoint: ${AZURE_KEY_VAULT_ENDPOINT:}
+      cosmos:
+        endpoint: ${AZURE_COSMOS_ENDPOINT:}
+        key: ${AZURE_COSMOS_KEY:}
+        database: ${AZURE_COSMOS_DB:anti-abuse}
+        consistency-level: Session
+        query-metrics-enabled: true
+      eventhubs:
+        namespace: ${AZURE_EVENT_HUBS_NAMESPACE:}
+        connection-string: ${AZURE_EVENT_HUBS_CONNECTION_STRING:}
+
+azure:
+  ml:
+    endpoint-url: ${AZURE_ML_ENDPOINT_URL:}
+    api-key: ${AZURE_ML_API_KEY:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  tracing:
+    enabled: true
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui
+    enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.youtube.antiaabuseservice: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level [%X{correlationId}] %logger{36} - %msg%n"
+
+resilience4j:
+  retry:
+    instances:
+      mlEndpoint:
+        max-attempts: 2
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+  circuitbreaker:
+    instances:
+      mlEndpoint:
+        sliding-window-size: 20
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        minimum-number-of-calls: 10
+  timelimiter:
+    instances:
+      mlEndpoint:
+        timeout-duration: 2s
+

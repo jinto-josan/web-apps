@@ -1,0 +1,32 @@
+spring:
+  cloud:
+    azure:
+      keyvault:
+        secret:
+          enabled: true
+      cosmos:
+        consistency-level: Session
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+      base-path: /actuator
+  health:
+    probes:
+      enabled: true
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.youtube.antiaabuseservice: INFO
+

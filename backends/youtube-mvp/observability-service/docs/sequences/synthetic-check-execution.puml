@@ -1,0 +1,29 @@
+@startuml Synthetic Check Execution Flow
+participant "Scheduler/User" as Trigger
+participant "SyntheticCheckController" as Controller
+participant "SyntheticCheckApplicationService" as Service
+participant "SyntheticCheckRepository" as Repo
+participant "SyntheticCheckRunner" as Runner
+participant "OkHttpClient" as HTTP
+participant "Target Service" as Target
+
+Trigger -> Controller: POST /api/v1/synthetics/{id}/run
+Controller -> Service: runCheck(id)
+Service -> Repo: findById(id)
+Repo --> Service: SyntheticCheck
+
+Service -> Runner: run(check)
+Runner -> HTTP: Build request
+HTTP -> Target: HTTP request
+Target --> HTTP: Response
+HTTP --> Runner: Response details
+
+Runner -> Runner: Validate status code
+Runner -> Runner: Validate response body (if pattern)
+Runner --> Service: SyntheticCheckResult
+
+Service -> Repo: save(check)
+Service --> Controller: SyntheticCheckResultResponse
+Controller --> Trigger: 200 OK
+@enduml
+

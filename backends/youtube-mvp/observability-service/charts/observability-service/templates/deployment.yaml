@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "observability-service.fullname" . }}
+  namespace: {{ .Values.namespace | default "youtube-mvp" }}
+  labels:
+    {{- include "observability-service.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "observability-service.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "observability-service.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: observability-service
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: {{ .Values.config.springProfilesActive | quote }}
+        - name: DATASOURCE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "observability-service.fullname" . }}-secrets
+              key: datasource-url
+        - name: DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "observability-service.fullname" . }}-secrets
+              key: datasource-username
+        - name: DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "observability-service.fullname" . }}-secrets
+              key: datasource-password
+        - name: REDIS_HOST
+          value: {{ .Values.config.redisHost | quote }}
+        - name: REDIS_PORT
+          value: {{ .Values.config.redisPort | quote }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+

@@ -1,0 +1,90 @@
+@startuml Event Collection Sequence
+
+participant "Client" as Client
+participant "TelemetryController" as Controller
+participant "TelemetryApplicationService" as AppService
+participant "IdempotencyService" as Idempotency
+participant "SchemaValidator" as Validator
+participant "EventRepository" as Repository
+participant "EventPublisher" as Publisher
+participant "Event Hubs" as EventHubs
+participant "StatsService" as Stats
+participant "DeadLetterQueue" as DLQ
+
+Client -> Controller: POST /api/v1/events/batch\n(BatchEventRequest)
+activate Controller
+
+Controller -> AppService: processBatch(request)
+activate AppService
+
+AppService -> Idempotency: isProcessed(idempotencyKey)
+activate Idempotency
+Idempotency -> Idempotency: Check Redis
+Idempotency --> AppService: false
+deactivate Idempotency
+
+loop For each event
+    AppService -> AppService: Map DTO to Domain Entity
+    AppService -> AppService: Validate domain rules
+    AppService -> Validator: validate(event)
+    activate Validator
+    Validator -> Validator: Validate against JSON Schema
+    Validator --> AppService: Valid
+    deactivate Validator
+    
+    AppService -> Repository: existsById(eventId)
+    activate Repository
+    Repository --> AppService: false
+    deactivate Repository
+    
+    AppService -> Repository: save(event)
+    activate Repository
+    Repository --> AppService: Saved
+    deactivate Repository
+end
+
+AppService -> Publisher: publishBatch(events)
+activate Publisher
+
+Publisher -> Publisher: Partition into batches (100 events)
+Publisher -> EventHubs: Send batch 1
+Publisher -> EventHubs: Send batch 2
+Publisher -> EventHubs: Send batch N
+activate EventHubs
+EventHubs --> Publisher: Acknowledged
+deactivate EventHubs
+
+alt Success
+    Publisher --> AppService: Success
+    AppService -> Stats: recordProcessed(count)
+    activate Stats
+    Stats --> AppService: Recorded
+    deactivate Stats
+else Failure
+    Publisher --> AppService: Failure
+    AppService -> DLQ: sendBatchToDlq(events, error)
+    activate DLQ
+    DLQ -> DLQ: Upload to Blob Storage
+    DLQ --> AppService: Sent
+    deactivate DLQ
+    AppService -> Stats: recordError(count)
+    activate Stats
+    Stats --> AppService: Recorded
+    deactivate Stats
+end
+deactivate Publisher
+
+AppService -> Idempotency: markProcessed(idempotencyKey)
+activate Idempotency
+Idempotency -> Idempotency: Store in Redis (TTL: 24h)
+Idempotency --> AppService: Marked
+deactivate Idempotency
+
+AppService --> Controller: BatchEventResponse
+deactivate AppService
+
+Controller --> Client: 202 Accepted\n(BatchEventResponse)
+deactivate Controller
+
+@enduml
+

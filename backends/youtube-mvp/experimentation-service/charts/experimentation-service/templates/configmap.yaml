@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "experimentation-service.fullname" . }}-config
+data:
+  redis-host: {{ .Values.config.redis.host }}
+

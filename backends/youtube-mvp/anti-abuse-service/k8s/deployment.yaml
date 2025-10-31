@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anti-abuse-service
+  labels:
+    app: anti-abuse-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: anti-abuse-service
+  template:
+    metadata:
+      labels:
+        app: anti-abuse-service
+    spec:
+      containers:
+      - name: anti-abuse-service
+        image: anti-abuse-service:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "production"
+        - name: AZURE_COSMOS_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: anti-abuse-secrets
+              key: cosmos-endpoint
+        - name: AZURE_COSMOS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: anti-abuse-secrets
+              key: cosmos-key
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: anti-abuse-config
+              key: redis-host
+        - name: AZURE_ML_ENDPOINT_URL
+          valueFrom:
+            secretKeyRef:
+              name: anti-abuse-secrets
+              key: ml-endpoint-url
+        - name: AZURE_ML_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: anti-abuse-secrets
+              key: ml-api-key
+        - name: OAUTH2_ISSUER_URI
+          valueFrom:
+            secretKeyRef:
+              name: anti-abuse-secrets
+              key: oauth2-issuer-uri
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+

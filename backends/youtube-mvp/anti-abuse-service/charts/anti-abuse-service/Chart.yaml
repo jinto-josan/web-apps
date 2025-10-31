@@ -1,0 +1,7 @@
+apiVersion: v2
+name: anti-abuse-service
+description: Helm chart for Anti-Abuse Service
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+

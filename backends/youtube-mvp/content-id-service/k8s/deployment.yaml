@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-id-service
+  labels:
+    app: content-id-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: content-id-service
+  template:
+    metadata:
+      labels:
+        app: content-id-service
+    spec:
+      containers:
+      - name: content-id-service
+        image: content-id-service:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: content-id-secrets
+              key: database-url
+        - name: DATABASE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: content-id-secrets
+              key: database-username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: content-id-secrets
+              key: database-password
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: AZURE_COSMOS_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: content-id-secrets
+              key: cosmos-endpoint
+        - name: AZURE_COSMOS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: content-id-secrets
+              key: cosmos-key
+        - name: AZURE_STORAGE_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: content-id-secrets
+              key: storage-connection-string
+        - name: AZURE_SERVICE_BUS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: content-id-secrets
+              key: servicebus-connection-string
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: content-id-service
+spec:
+  selector:
+    app: content-id-service
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+

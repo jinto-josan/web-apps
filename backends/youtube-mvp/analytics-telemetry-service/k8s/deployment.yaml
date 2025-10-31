@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-telemetry-service
+  namespace: youtube-mvp
+  labels:
+    app: analytics-telemetry-service
+    tier: backend
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: analytics-telemetry-service
+  template:
+    metadata:
+      labels:
+        app: analytics-telemetry-service
+        tier: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      serviceAccountName: analytics-telemetry-service
+      containers:
+      - name: analytics-telemetry-service
+        image: acr.azurecr.io/analytics-telemetry-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "azure"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: analytics-telemetry-service-config
+              key: redis.host
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: analytics-telemetry-service-config
+              key: redis.port
+        - name: REDIS_SSL_ENABLED
+          value: "true"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: analytics-telemetry-service-secrets
+              key: redis.password
+        - name: EVENT_HUBS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: analytics-telemetry-service-secrets
+              key: eventhubs.connection-string
+        - name: EVENT_HUB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: analytics-telemetry-service-config
+              key: eventhubs.event-hub-name
+        - name: STORAGE_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: analytics-telemetry-service-secrets
+              key: storage.connection-string
+        - name: DLQ_CONTAINER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: analytics-telemetry-service-config
+              key: storage.dlq-container-name
+        - name: APP_CONFIG_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: analytics-telemetry-service-config
+              key: app-config.endpoint
+        - name: KEY_VAULT_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: analytics-telemetry-service-config
+              key: key-vault.endpoint
+        - name: JWT_ISSUER_URI
+          valueFrom:
+            configMapKeyRef:
+              name: analytics-telemetry-service-config
+              key: jwt.issuer-uri
+        - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: analytics-telemetry-service-secrets
+              key: app-insights.connection-string
+        - name: AZURE_MONITOR_ENABLED
+          value: "true"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-telemetry-service
+  namespace: youtube-mvp
+  labels:
+    app: analytics-telemetry-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: analytics-telemetry-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: analytics-telemetry-service-pdb
+  namespace: youtube-mvp
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: analytics-telemetry-service
+

@@ -1,0 +1,141 @@
+spring:
+  application:
+    name: analytics-telemetry-service
+  
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:azure}
+  
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    default-property-inclusion: NON_NULL
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: ${APP_CONFIG_ENABLED:true}
+        endpoint: ${APP_CONFIG_ENDPOINT:}
+        stores:
+          - endpoint: ${APP_CONFIG_ENDPOINT}
+      
+      keyvault:
+        secret:
+          enabled: ${KEY_VAULT_ENABLED:true}
+          endpoint: ${KEY_VAULT_ENDPOINT:}
+          properties:
+            - secret-name: eventhubs-connection-string
+            - secret-name: storage-connection-string
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:}
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics,env
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      azure-monitor:
+        enabled: ${AZURE_MONITOR_ENABLED:true}
+        connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
+
+logging:
+  level:
+    root: INFO
+    com.youtube.analyticstelemetryservice: DEBUG
+    io.opentelemetry: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+resilience4j:
+  retry:
+    instances:
+      eventPublisher:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+          - com.azure.core.exception.AzureException
+  circuitbreaker:
+    instances:
+      eventPublisher:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 10s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+  ratelimiter:
+    instances:
+      eventCollection:
+        limit-for-period: 10000
+        limit-refresh-period: 1s
+        timeout-duration: 5s
+        subscribe-for-refresh: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+  show-actuator: true
+
+info:
+  app:
+    name: Analytics & Telemetry Service
+    description: Event collection and forwarding to Event Hubs
+    version: 1.0.0
+
+# Azure Event Hubs configuration
+azure:
+  eventhubs:
+    connection-string: ${EVENT_HUBS_CONNECTION_STRING:}
+    event-hub-name: ${EVENT_HUB_NAME:telemetry-events}
+    batch-size: 100
+    max-batch-size: 1048576  # 1MB
+
+# Azure Storage configuration for DLQ
+azure:
+  storage:
+    connection-string: ${STORAGE_CONNECTION_STRING:}
+    dlq-container-name: ${DLQ_CONTAINER_NAME:telemetry-dlq}
+
+# Telemetry service configuration
+telemetry:
+  idempotency:
+    ttl-hours: 24
+  schema:
+    default-version: 1.0
+  repository:
+    type: memory  # Options: memory, cosmos, postgres
+

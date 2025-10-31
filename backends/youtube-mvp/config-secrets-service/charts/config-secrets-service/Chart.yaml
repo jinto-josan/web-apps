@@ -1,0 +1,7 @@
+apiVersion: v2
+name: config-secrets-service
+description: A Helm chart for Configuration and Secrets Service
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+

@@ -1,0 +1,169 @@
+spring:
+  application:
+    name: config-secrets-service
+  
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    open-in-view: false
+  
+  # Datasource Configuration
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/configsecrets}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+  
+  # Flyway Migration
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+  
+  # Redis Configuration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 2
+  
+  # Azure App Configuration
+  cloud:
+    azure:
+      appconfiguration:
+        endpoint: ${AZURE_APP_CONFIG_ENDPOINT:}
+        enabled: true
+      keyvault:
+        secret:
+          enabled: true
+  
+  # Security OAuth2 Resource Server
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:https://login.microsoftonline.com/{tenantId}/v2.0}
+          jwk-set-uri: ${JWT_JWK_SET_URI:https://login.microsoftonline.com/{tenantId}/discovery/v2.0/keys}
+
+# Azure Configuration
+azure:
+  appconfiguration:
+    endpoint: ${AZURE_APP_CONFIG_ENDPOINT:}
+  keyvault:
+    uri: ${AZURE_KEY_VAULT_URI:}
+    secret-scope-prefix: ${AZURE_KEYVAULT_SECRET_SCOPE_PREFIX:config}
+  servicebus:
+    connection-string: ${AZURE_SERVICE_BUS_CONNECTION_STRING:}
+    topic: ${AZURE_SERVICE_BUS_TOPIC:config-updates}
+
+# Management/Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,env,configprops
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    include-exception: false
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        recordExceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+      appConfig:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+      keyVault:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+      appConfig:
+        maxAttempts: 3
+        waitDuration: 500ms
+      keyVault:
+        maxAttempts: 3
+        waitDuration: 500ms
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+      appConfig:
+        timeoutDuration: 3s
+      keyVault:
+        timeoutDuration: 5s
+  bulkhead:
+    configs:
+      default:
+        maxConcurrentCalls: 25
+        maxWaitDuration: 5000ms
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.youtube.configsecretsservice: DEBUG
+    org.springframework.security: INFO
+    io.github.resilience4j: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Application Configuration
+app:
+  config:
+    cache-ttl-seconds: 300
+    default-label: ""
+

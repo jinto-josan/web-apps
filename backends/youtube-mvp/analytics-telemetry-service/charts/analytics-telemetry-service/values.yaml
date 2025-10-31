@@ -1,0 +1,97 @@
+replicaCount: 3
+
+image:
+  repository: acr.azurecr.io/analytics-telemetry-service
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+    - ALL
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: api.youtube-mvp.com
+      paths:
+        - path: /api/v1/events
+          pathType: Prefix
+  tls:
+    - secretName: api-youtube-mvp-tls
+      hosts:
+        - api.youtube-mvp.com
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+config:
+  redis:
+    host: "redis-service.youtube-mvp.svc.cluster.local"
+    port: 6379
+  eventhubs:
+    event-hub-name: "telemetry-events"
+  storage:
+    dlq-container-name: "telemetry-dlq"
+  app-config:
+    endpoint: "https://app-config.azure.net"
+  key-vault:
+    endpoint: "https://key-vault.vault.azure.net"
+  jwt:
+    issuer-uri: "https://your-tenant.b2clogin.com/your-tenant.onmicrosoft.com/v2.0/"
+
+secrets:
+  redis:
+    password: ""
+  eventhubs:
+    connection-string: ""
+  storage:
+    connection-string: ""
+  app-insights:
+    connection-string: ""
+

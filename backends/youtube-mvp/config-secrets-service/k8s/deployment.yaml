@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-secrets-service
+  namespace: youtube-mvp
+  labels:
+    app: config-secrets-service
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: config-secrets-service
+  template:
+    metadata:
+      labels:
+        app: config-secrets-service
+        version: v1
+    spec:
+      serviceAccountName: config-secrets-service
+      containers:
+      - name: config-secrets-service
+        image: config-secrets-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: config-secrets-secrets
+              key: database-url
+        - name: DATABASE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: config-secrets-secrets
+              key: database-username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: config-secrets-secrets
+              key: database-password
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: AZURE_APP_CONFIG_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: config-secrets-secrets
+              key: app-config-endpoint
+        - name: AZURE_KEY_VAULT_URI
+          valueFrom:
+            secretKeyRef:
+              name: config-secrets-secrets
+              key: key-vault-uri
+        - name: AZURE_SERVICE_BUS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: config-secrets-secrets
+              key: service-bus-connection-string
+        - name: JWT_ISSUER_URI
+          value: "https://login.microsoftonline.com/{tenantId}/v2.0"
+        - name: JWT_JWK_SET_URI
+          value: "https://login.microsoftonline.com/{tenantId}/discovery/v2.0/keys"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+

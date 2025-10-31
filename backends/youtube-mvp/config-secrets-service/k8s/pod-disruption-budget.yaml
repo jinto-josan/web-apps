@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: config-secrets-service-pdb
+  namespace: youtube-mvp
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: config-secrets-service
+

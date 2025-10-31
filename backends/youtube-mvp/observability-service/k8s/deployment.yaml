@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observability-service
+  namespace: youtube-mvp
+  labels:
+    app: observability-service
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: observability-service
+  template:
+    metadata:
+      labels:
+        app: observability-service
+        version: v1
+    spec:
+      containers:
+      - name: observability-service
+        image: <registry>/observability-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "azure"
+        - name: DATASOURCE_URL
+          valueFrom:
+            secretKeyRef:
+              name: observability-service-secrets
+              key: datasource-url
+        - name: DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: observability-service-secrets
+              key: datasource-username
+        - name: DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: observability-service-secrets
+              key: datasource-password
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: observability-service-config
+              key: redis-host
+        - name: REDIS_PORT
+          value: "6379"
+        - name: JWT_ISSUER_URI
+          valueFrom:
+            configMapKeyRef:
+              name: observability-service-config
+              key: jwt-issuer-uri
+        - name: AZURE_MONITOR_WORKSPACE_ID
+          valueFrom:
+            secretKeyRef:
+              name: observability-service-secrets
+              key: azure-monitor-workspace-id
+        - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: observability-service-secrets
+              key: applicationinsights-connection-string
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+

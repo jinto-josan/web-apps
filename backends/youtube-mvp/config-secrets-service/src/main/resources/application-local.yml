@@ -1,0 +1,39 @@
+spring:
+  # Local PostgreSQL with Docker
+  datasource:
+    url: jdbc:postgresql://localhost:5432/configsecrets
+    username: postgres
+    password: postgres
+  
+  # Local Redis with Docker
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+  
+  # Local Azure emulator endpoints (if using Azurite/Cosmos emulator)
+  cloud:
+    azure:
+      appconfiguration:
+        endpoint: ${AZURE_APP_CONFIG_ENDPOINT:http://localhost:8080/appconfig}
+      keyvault:
+        secret:
+          enabled: false  # Disable for local, use mock
+  
+azure:
+  appconfiguration:
+    endpoint: ${AZURE_APP_CONFIG_ENDPOINT:}
+  keyvault:
+    uri: ${AZURE_KEY_VAULT_URI:}
+  servicebus:
+    connection-string: ${AZURE_SERVICE_BUS_CONNECTION_STRING:UseDevelopmentStorage=true}
+
+# Logging for local development
+logging:
+  level:
+    root: INFO
+    com.youtube.configsecretsservice: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+

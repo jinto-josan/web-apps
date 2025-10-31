@@ -1,0 +1,34 @@
+@startuml SLO Calculation Flow
+participant "User" as User
+participant "SLOController" as Controller
+participant "SLOApplicationService" as Service
+participant "SLORepository" as Repo
+participant "AzureMonitorQueryPort" as Monitor
+participant "SLOCalculator" as Calculator
+participant "SLOExporterPort" as Exporter
+
+User -> Controller: POST /api/v1/slo/{id}/recalculate
+Controller -> Service: recalculateSLO(id)
+Service -> Repo: findById(id)
+Repo --> Service: SLO
+
+loop For each SLI
+    Service -> Monitor: calculateSLI(sli)
+    Monitor -> Monitor: Execute KQL query
+    Monitor --> Service: SLI value
+end
+
+Service -> Calculator: calculateSLO(slo, slis)
+Calculator --> Service: currentSLO
+
+Service -> Calculator: calculateErrorBudgetBurnRate(...)
+Calculator --> Service: burnRate
+
+Service -> Repo: save(slo)
+Service -> Exporter: export(slo)
+Exporter -> Exporter: Export to Prometheus/Azure Monitor
+
+Service --> Controller: void
+Controller --> User: 202 Accepted
+@enduml
+

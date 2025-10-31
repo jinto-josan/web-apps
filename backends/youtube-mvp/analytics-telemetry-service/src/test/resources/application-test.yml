@@ -1,0 +1,21 @@
+spring:
+  profiles:
+    active: test
+  
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: 
+      ssl:
+        enabled: false
+
+telemetry:
+  repository:
+    type: memory
+
+logging:
+  level:
+    root: INFO
+    com.youtube.analyticstelemetryservice: DEBUG
+

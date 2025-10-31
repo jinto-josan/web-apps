@@ -1,0 +1,14 @@
+spring:
+  cloud:
+    azure:
+      appconfiguration:
+        stores:
+          - name: ${APP_CONFIG_STORE_NAME:observability-service-config}
+            endpoint: ${APP_CONFIG_ENDPOINT:}
+            fail-fast: false
+            refresh:
+              enabled: true
+              monitoring:
+                enabled: true
+                refresh-interval: 30s
+

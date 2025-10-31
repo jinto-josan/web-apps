@@ -1,0 +1,81 @@
+@startuml Update Configuration Sequence
+participant Client
+participant ConfigController
+participant ConfigApplicationService
+participant RbacCheckPort
+participant ConfigurationRepository
+participant AppConfigurationPort
+participant KeyVaultPort
+participant CachePort
+participant EventPublisherPort
+participant AuditLoggerPort
+
+Client -> ConfigController: PUT /api/v1/config/{scope}/{key}\nAuthorization: Bearer {JWT}\nIf-Match: {etag}\nBody: {value, contentType, isSecret}
+activate ConfigController
+
+ConfigController -> ConfigApplicationService: updateConfiguration(scope, key, request, etag, userId, tenantId)
+activate ConfigApplicationService
+
+ConfigApplicationService -> RbacCheckPort: canWrite(userId, tenantId, scope)
+activate RbacCheckPort
+RbacCheckPort -> RbacCheckPort: Validate JWT claims
+RbacCheckPort --> ConfigApplicationService: true/false
+deactivate RbacCheckPort
+
+alt Access Denied
+    ConfigApplicationService -> AuditLoggerPort: log(ACCESS_DENIED)
+    ConfigApplicationService --> ConfigController: ResponseStatusException(403)
+    ConfigController --> Client: 403 Forbidden
+else Access Granted
+    ConfigApplicationService -> ConfigurationRepository: findByScopeAndKey(scope, key)
+    activate ConfigurationRepository
+    ConfigurationRepository --> ConfigApplicationService: Optional<ConfigurationEntry>
+    deactivate ConfigurationRepository
+    
+    alt ETag Mismatch (If-Match provided)
+        ConfigApplicationService --> ConfigController: ResponseStatusException(412)
+        ConfigController --> Client: 412 Precondition Failed
+    else ETag OK or No ETag
+        alt isSecret == true
+            ConfigApplicationService -> KeyVaultPort: setSecret(scope, key, value)
+            activate KeyVaultPort
+            KeyVaultPort -> KeyVaultPort: Call Azure Key Vault SDK
+            KeyVaultPort --> ConfigApplicationService: void
+            deactivate KeyVaultPort
+            
+            ConfigApplicationService -> ConfigurationRepository: save(entry with masked value)
+        else isSecret == false
+            ConfigApplicationService -> AppConfigurationPort: setConfiguration(scope, key, value, contentType, label, etag)
+            activate AppConfigurationPort
+            AppConfigurationPort -> AppConfigurationPort: Call Azure App Config SDK
+            AppConfigurationPort --> ConfigApplicationService: ConfigurationEntry
+            deactivate AppConfigurationPort
+            
+            ConfigApplicationService -> ConfigurationRepository: save(updated)
+        end
+        
+        activate ConfigurationRepository
+        ConfigurationRepository --> ConfigApplicationService: ConfigurationEntry
+        deactivate ConfigurationRepository
+        
+        ConfigApplicationService -> CachePort: evict("config:{scope}:{key}")
+        activate CachePort
+        CachePort --> ConfigApplicationService: void
+        deactivate CachePort
+        
+        ConfigApplicationService -> EventPublisherPort: publishConfigurationUpdated(scope, key, etag)
+        activate EventPublisherPort
+        EventPublisherPort -> EventPublisherPort: Publish to Service Bus
+        EventPublisherPort --> ConfigApplicationService: void
+        deactivate EventPublisherPort
+        
+        ConfigApplicationService -> AuditLoggerPort: log(CONFIG_UPDATE)
+        ConfigApplicationService --> ConfigController: ConfigResponse
+        ConfigController --> Client: 200 OK + ETag
+    end
+end
+
+deactivate ConfigApplicationService
+deactivate ConfigController
+@enduml
+

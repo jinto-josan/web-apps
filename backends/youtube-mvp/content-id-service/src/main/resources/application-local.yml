@@ -1,0 +1,44 @@
+# Local development configuration with emulators
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/contentid
+    username: postgres
+    password: postgres
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ""
+  
+  cloud:
+    azure:
+      appconfiguration:
+        enabled: false
+      keyvault:
+        secret:
+          enabled: false
+      cosmos:
+        enabled: false
+        emulator:
+          enabled: true
+      servicebus:
+        enabled: false
+
+azure:
+  storage:
+    connection-string: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6yq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
+    container:
+      fingerprints: fingerprints
+  
+  event-hubs:
+    connection-string: Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=testkey;UseDevelopmentEmulator=true
+    event-hub-name: match-events
+
+logging:
+  level:
+    root: INFO
+    com.youtube.contentidservice: DEBUG
+    org.springframework.security: WARN
+

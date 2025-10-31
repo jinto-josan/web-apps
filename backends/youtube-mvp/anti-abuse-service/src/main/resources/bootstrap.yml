@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: anti-abuse-service
+  cloud:
+    azure:
+      keyvault:
+        secret:
+          enabled: ${AZURE_KEY_VAULT_ENABLED:true}
+          endpoint: ${AZURE_KEY_VAULT_ENDPOINT:}
+

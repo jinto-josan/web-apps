@@ -1,0 +1,35 @@
+spring:
+  profiles:
+    active: local
+  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: 
+      ssl:
+        enabled: false
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/auth/realms/test
+
+azure:
+  eventhubs:
+    connection-string: ${EVENT_HUBS_CONNECTION_STRING:Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=TestKey}
+    event-hub-name: telemetry-events
+  
+  storage:
+    connection-string: ${STORAGE_CONNECTION_STRING:DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://localhost:10000/devstoreaccount1;}
+    dlq-container-name: telemetry-dlq
+
+telemetry:
+  repository:
+    type: memory
+
+logging:
+  level:
+    com.youtube.analyticstelemetryservice: DEBUG
+

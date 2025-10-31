@@ -1,0 +1,14 @@
+apiVersion: v2
+name: edge-cdn-control-service
+description: A Helm chart for Edge/CDN Control Service
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - cdn
+  - front-door
+  - azure
+maintainers:
+  - name: Platform Team
+    email: platform@youtube.com
+

@@ -1,0 +1,25 @@
+spring:
+  profiles:
+    active: dev
+  
+  # Development Azure resources
+  cloud:
+    azure:
+      appconfiguration:
+        endpoint: ${AZURE_APP_CONFIG_ENDPOINT}
+      keyvault:
+        secret:
+          enabled: true
+
+azure:
+  appconfiguration:
+    endpoint: ${AZURE_APP_CONFIG_ENDPOINT}
+  keyvault:
+    uri: ${AZURE_KEY_VAULT_URI}
+  servicebus:
+    connection-string: ${AZURE_SERVICE_BUS_CONNECTION_STRING}
+
+logging:
+  level:
+    com.youtube.configsecretsservice: DEBUG
+

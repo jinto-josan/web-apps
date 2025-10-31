@@ -1,0 +1,96 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: experimentation-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_ISSUER_URI:https://login.microsoftonline.com/<tenant>/v2.0}
+      client:
+        registration:
+          default:
+            client-id: ${AZURE_CLIENT_ID:}
+            client-secret: ${AZURE_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+        provider:
+          default:
+            issuer-uri: ${OAUTH2_ISSUER_URI:https://login.microsoftonline.com/<tenant>/v2.0}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  cloud:
+    azure:
+      credential:
+        client-id: ${AZURE_CLIENT_ID:}
+        client-secret: ${AZURE_CLIENT_SECRET:}
+        tenant-id: ${AZURE_TENANT_ID:}
+      appconfiguration:
+        enabled: true
+        endpoint: ${AZURE_APP_CONFIG_ENDPOINT:}
+        connection-string: ${AZURE_APP_CONFIG_CONNECTION_STRING:}
+      keyvault:
+        secret:
+          enabled: true
+          endpoint: ${AZURE_KEY_VAULT_ENDPOINT:}
+      cosmos:
+        endpoint: ${AZURE_COSMOS_ENDPOINT:}
+        key: ${AZURE_COSMOS_KEY:}
+        database: ${AZURE_COSMOS_DB:experimentation}
+        consistency-level: Session
+        query-metrics-enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  tracing:
+    enabled: true
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui
+    enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.youtube.experimentationservice: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level [%X{correlationId}] %logger{36} - %msg%n"
+
+resilience4j:
+  retry:
+    instances:
+      appconfig:
+        max-attempts: 3
+        wait-duration: 200ms
+        enable-exponential-backoff: true
+  circuitbreaker:
+    instances:
+      appconfig:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+  timelimiter:
+    instances:
+      appconfig:
+        timeout-duration: 3s
+
