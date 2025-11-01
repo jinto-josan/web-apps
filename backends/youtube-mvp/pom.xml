@@ -45,7 +45,6 @@
         <!-- Common Domain Modules -->
         <module>common-domain</module>
         <module>common-domain/event-contracts</module>
-        <module>common-domain/id-generation</module>
         <module>common-domain/error</module>
         <module>common-domain/infrastructure</module>
         <module>common-domain/shared-models</module>
@@ -133,7 +132,7 @@
             <!-- Common Domain Dependencies -->
             <dependency>
                 <groupId>com.youtube.mvp</groupId>
-                <artifactId>event-contracts</artifactId>
+                <artifactId>common-domain-event-contracts</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -143,7 +142,7 @@
             </dependency>
             <dependency>
                 <groupId>com.youtube.mvp</groupId>
-                <artifactId>error</artifactId>
+                <artifactId>common-domain-error</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

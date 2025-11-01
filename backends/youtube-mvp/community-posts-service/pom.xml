@@ -50,7 +50,7 @@
         <!-- Common Domain Dependencies -->
         <dependency>
             <groupId>com.youtube.mvp</groupId>
-            <artifactId>event-contracts</artifactId>
+            <artifactId>common-domain-event-contracts</artifactId>
         </dependency>
         <dependency>
             <groupId>com.youtube.mvp</groupId>
@@ -58,7 +58,7 @@
         </dependency>
         <dependency>
             <groupId>com.youtube.mvp</groupId>
-            <artifactId>error</artifactId>
+            <artifactId>common-domain-error</artifactId>
         </dependency>
         
         <!-- Database -->

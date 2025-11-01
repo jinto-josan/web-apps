@@ -1,0 +1,3 @@
+# This file signals that IntelliJ should treat this as a Maven parent POM
+# with no source roots. Child modules should be imported separately.
+

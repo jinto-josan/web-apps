@@ -38,7 +38,7 @@ Add the dependency to your service's `pom.xml`:
 ```xml
 <dependency>
     <groupId>com.youtube.mvp</groupId>
-    <artifactId>event-contracts</artifactId>
+    <artifactId>common-domain-event-contracts</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ```

@@ -72,7 +72,7 @@
         </dependency>
         <dependency>
             <groupId>com.youtube.mvp</groupId>
-            <artifactId>error</artifactId>
+            <artifactId>common-domain-error</artifactId>
             <version>${project.version}</version>
         </dependency>
     </dependencies>

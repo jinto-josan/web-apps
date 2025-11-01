@@ -41,7 +41,15 @@ public class UnitOfWork {
      * @param cause the exception that caused the rollback
      */
     public void rollback(Throwable cause) {
-        TransactionSynchronizationManager.setRollbackOnly();
+        // In Spring, rollback is typically triggered by throwing an exception
+        // For explicit rollback, throw a RuntimeException
+        if (cause instanceof RuntimeException) {
+            throw (RuntimeException) cause;
+        } else if (cause instanceof Error) {
+            throw (Error) cause;
+        } else {
+            throw new RuntimeException("Transaction rollback", cause);
+        }
     }
     
     /**

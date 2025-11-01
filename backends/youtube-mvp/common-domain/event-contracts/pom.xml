@@ -11,7 +11,7 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>event-contracts</artifactId>
+    <artifactId>common-domain-event-contracts</artifactId>
     <packaging>jar</packaging>
 
     <name>Event Contracts</name>

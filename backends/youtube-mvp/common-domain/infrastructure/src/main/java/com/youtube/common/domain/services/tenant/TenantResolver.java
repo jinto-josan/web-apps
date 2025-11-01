@@ -58,7 +58,7 @@ public class TenantResolver {
             Optional<Tenant> tenant = tenantRepository.findById(tenantIdFromClaims);
             if (tenant.isPresent()) {
                 log.debug("Resolved tenant {} from claims", tenantIdFromClaims);
-                return tenant.get().getId();
+                return tenant.get().id();
             }
         }
         
@@ -66,8 +66,8 @@ public class TenantResolver {
         if (host != null) {
             Optional<Tenant> tenant = tenantRepository.findByDomain(host);
             if (tenant.isPresent()) {
-                log.debug("Resolved tenant {} from host {}", tenant.get().getId(), host);
-                return tenant.get().getId();
+                log.debug("Resolved tenant {} from host {}", tenant.get().id(), host);
+                return tenant.get().id();
             }
         }
         
@@ -75,8 +75,8 @@ public class TenantResolver {
         if (tenantDomainFromClaims != null) {
             Optional<Tenant> tenant = tenantRepository.findByDomain(tenantDomainFromClaims);
             if (tenant.isPresent()) {
-                log.debug("Resolved tenant {} from domain {}", tenant.get().getId(), tenantDomainFromClaims);
-                return tenant.get().getId();
+                log.debug("Resolved tenant {} from domain {}", tenant.get().id(), tenantDomainFromClaims);
+                return tenant.get().id();
             }
         }
         

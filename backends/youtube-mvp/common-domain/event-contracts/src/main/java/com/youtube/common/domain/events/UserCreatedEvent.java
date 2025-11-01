@@ -2,7 +2,7 @@ package com.youtube.common.domain.events;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.youtube.common.domain.DomainEvent;
+import com.youtube.common.domain.core.DomainEvent;
 import com.youtube.common.domain.shared.valueobjects.UserId;
 
 import java.time.Instant;

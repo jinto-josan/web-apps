@@ -2,7 +2,7 @@ package com.youtube.common.domain.shared.valueobjects;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.youtube.common.domain.Identifier;
+import com.youtube.common.domain.core.Identifier;
 import jakarta.validation.constraints.NotBlank;
 
 import java.util.Objects;
