@@ -1,6 +1,6 @@
 package com.youtube.identityauthservice.infrastructure.util;
 
-import com.youtube.identityauthservice.domain.model.HttpIdempotency;
+import com.youtube.identityauthservice.infrastructure.persistence.entity.HttpIdempotencyEntity;
 import com.youtube.identityauthservice.infrastructure.persistence.HttpIdempotencyRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -46,7 +46,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
         var existing = repo.findByIdempotencyKeyAndRequestHash(key, hash);
         if (existing.isPresent() && existing.get().getResponseStatus() != null && existing.get().getResponseBody() != null) {
-            HttpIdempotency idem = existing.get();
+            HttpIdempotencyEntity idem = existing.get();
             response.setStatus(idem.getResponseStatus());
             response.getOutputStream().write(idem.getResponseBody());
             return;
@@ -55,7 +55,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         ContentCachingResponseWrapper wrapper = new ContentCachingResponseWrapper(response);
         filterChain.doFilter(request, wrapper);
 
-        HttpIdempotency record = existing.orElseGet(HttpIdempotency::new);
+        HttpIdempotencyEntity record = existing.orElseGet(HttpIdempotencyEntity::new);
         record.setIdempotencyKey(key);
         record.setRequestHash(hash);
         record.setResponseStatus(wrapper.getStatus());

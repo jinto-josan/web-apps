@@ -18,6 +18,20 @@
     <description>Event contracts and DTOs for inter-service communication</description>
 
     <dependencies>
+        <!-- Common Domain Infrastructure for DomainEvent base class -->
+        <dependency>
+            <groupId>com.youtube.mvp</groupId>
+            <artifactId>common-domain-infrastructure</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
+        <!-- Shared Models for value objects -->
+        <dependency>
+            <groupId>com.youtube.mvp</groupId>
+            <artifactId>common-domain-shared-models</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>

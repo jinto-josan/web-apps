@@ -1,5 +1,5 @@
 @startuml
-title Identity-Auth Service - LLD (Optimized)
+title Identity-Auth Service - Low-Level Design
 
 skinparam shadowing false
 skinparam packageStyle rectangle
@@ -15,303 +15,335 @@ skinparam classBackgroundColor white
 skinparam classBorderColor black
 skinparam interfaceBackgroundColor lightgreen
 skinparam interfaceBorderColor black
-skinparam enumBackgroundColor lightyellow
-skinparam enumBorderColor black
-skinparam arrowColor black
-skinparam arrowThickness 2
 
-package "Core Domain" {
-    enum UserStatus {
-        PENDING_VERIFICATION
-        ACTIVE
-        LOCKED
-        DISABLED
-    }
-    
-    enum TokenState {
-        PENDING
-        CONSUMED
-        EXPIRED
-        REVOKED
-    }
-    
+package "Domain Layer (Core)" <<clean>> {
     class User {
-        +id: UserId
-        +email: EmailAddress
-        +displayName: String
-        +status: UserStatus
-        +emailVerified: boolean
-        +passwordHash: String
-        +mfaEnabled: boolean
-        +createdAt: Instant
-        +updatedAt: Instant
+        -id: String
+        -email: String
+        -normalizedEmail: String
+        -displayName: String
+        -status: short
+        -emailVerified: boolean
+        -passwordHash: String
+        -mfaEnabled: boolean
+        -createdAt: Instant
+        -updatedAt: Instant
+        -version: Integer
     }
     
     class Session {
-        +id: SessionId
-        +userId: UserId
-        +jti: String
-        +deviceId: String
-        +userAgent: String
-        +ip: IpAddress
-        +createdAt: Instant
-        +revokedAt: Instant
+        -id: String
+        -userId: String
+        -jti: String
+        -deviceId: String
+        -userAgent: String
+        -ip: String
+        -revokedAt: Instant
+        -revokeReason: String
     }
     
     class RefreshToken {
-        +id: RefreshTokenId
-        +sessionId: SessionId
-        +tokenHash: String
-        +expiresAt: Instant
-        +replacedByTokenId: RefreshTokenId
-        +revokedAt: Instant
+        -id: String
+        -sessionId: String
+        -tokenHash: byte[]
+        -expiresAt: Instant
+        -revokedAt: Instant
+        -replacedByTokenId: String
     }
     
-    class EmailVerificationToken {
-        +id: EmailVerificationTokenId
-        +userId: UserId
-        +tokenHash: String
-        +expiresAt: Instant
-        +consumedAt: Instant
-        +state: TokenState
-    }
-    
-    class MfaSecret {
-        +id: MfaSecretId
-        +userId: UserId
-        +algorithm: MfaAlgorithm
-        +secretEnc: String
-        +digits: int
-        +periodSeconds: int
-        +verifiedAt: Instant
-    }
-    
-    class DeviceFlow {
-        +deviceCode: String
-        +userCode: String
-        +status: DeviceFlowStatus
-        +authorizedUserId: UserId
-        +createdAt: Instant
-        +authorizedAt: Instant
-        +expiresAt: Instant
-        +intervalSeconds: int
-    }
-}
-
-package "Use Cases" {
-    class ExchangeTokenUseCase {
-        +execute(req: ExchangeRequest): TokenPair
-    }
-    
-    class LoginUseCase {
-        +execute(req: LoginRequest): TokenPair
-    }
-    
-    class RefreshUseCase {
-        +execute(req: RefreshRequest): TokenPair
-    }
-    
-    class LogoutUseCase {
-        +execute(req: LogoutRequest): void
-    }
-    
-    class SignUpUseCase {
-        +execute(req: SignUpRequest, clientIp: String): void
-    }
-    
-    class VerifyEmailUseCase {
-        +execute(req: VerifyEmailRequest, clientInfo: Map): TokenPair
-    }
-    
-    class StartDeviceFlowUseCase {
-        +start(req: StartDeviceFlowRequest): Map
-    }
-    
-    class CompleteDeviceFlowUseCase {
-        +activate(req: ActivateDeviceFlowRequest): void
-    }
-    
-    class DevicePollUseCase {
-        +poll(req: PollDeviceFlowRequest): TokenPair
-    }
-    
-    class SetupMfaUseCase {
-        +setup(userId: UserId): Map
-    }
-    
-    class VerifyMfaUseCase {
-        +verify(userId: UserId, code: String): void
-    }
-}
-
-package "Repositories" {
     interface UserRepository {
-        +findByEmail(normalizedEmail: String): Optional
-        +findById(userId: UserId): Optional
-        +save(user: User): User
-        +update(user: User): void
+        +findByNormalizedEmail(email): Optional<User>
+        +findById(userId): Optional<User>
+        +save(user): User
+        +existsByNormalizedEmail(email): boolean
     }
     
     interface SessionRepository {
-        +save(newSession: Session): Session
-        +revoke(sessionId: SessionId, reason: String): void
+        +findById(sessionId): Optional<Session>
+        +save(session): Session
+        +findByUserId(userId): List<Session>
     }
     
     interface RefreshTokenRepository {
-        +saveNew(sessionId: SessionId, tokenHash: String, expiresAt: Instant): RefreshToken
-        +findByHash(tokenHash: String): Optional
-        +markReplaced(oldId: RefreshTokenId, newId: RefreshTokenId): void
-        +revokeChain(startingId: RefreshTokenId, reason: String): void
+        +findByTokenHash(hash): Optional<RefreshToken>
+        +save(token): RefreshToken
+        +findBySessionId(sessionId): List<RefreshToken>
     }
     
-    interface VerificationTokenRepository {
-        +create(t: EmailVerificationToken): EmailVerificationToken
-        +findByHash(hash: String): Optional
-        +markConsumed(id: EmailVerificationTokenId): void
-        +revokeByUser(userId: UserId, reason: String): void
+    interface EventPublisher {
+        +publishUserCreated(event): void
+        +publishUserUpdated(event): void
     }
     
-    interface MfaRepository {
-        +save(secret: MfaSecret): MfaSecret
-        +get(userId: UserId): Optional
-        +verify(userId: UserId): void
+    class UserCreated {
+        -userId: String
+        -email: String
+        -displayName: String
+        -emailVerified: boolean
+        -status: short
+        -createdAt: Instant
     }
     
-    interface DeviceFlowRepository {
-        +start(flow: DeviceFlow): void
-        +findByUserCode(userCode: String): Optional
-        +findByDeviceCode(deviceCode: String): Optional
-        +authorize(deviceCode: String, userId: UserId): void
-        +delete(deviceCode: String): void
+    class UserUpdated {
+        -userId: String
+        -email: String
+        -displayName: String
+        -emailVerified: boolean
+    }
+    
+    abstract class DomainEvent {
+        -eventId: String
+        -occurredAt: Instant
+    }
+    
+    DomainEvent <|-- UserCreated
+    DomainEvent <|-- UserUpdated
+}
+
+package "Application Layer" <<clean>> {
+    interface AuthUseCase {
+        +exchangeToken(command): TokenResponse
+        +refreshToken(command): TokenResponse
+        +revokeSession(command): void
+        +getUser(query): User
+    }
+    
+    class AuthUseCaseImpl {
+        -verifier: OidcIdTokenVerifier
+        -userRepository: UserRepository
+        -sessionService: SessionRefreshService
+        -tokenService: TokenService
+        -eventPublisher: EventPublisher
+        +exchangeToken(command): TokenResponse
+        +refreshToken(command): TokenResponse
+        +revokeSession(command): void
+    }
+    
+    class ExchangeTokenCommand {
+        -idToken: String
+        -deviceId: String
+        -userAgent: String
+        -ip: String
+        -scope: String
+    }
+    
+    class RefreshTokenCommand {
+        -refreshToken: String
+        -scope: String
+    }
+    
+    class RevokeSessionCommand {
+        -refreshToken: String
+    }
+    
+    class GetUserQuery {
+        -userId: String
+    }
+    
+    class TokenResponse {
+        +accessToken: String
+        +refreshToken: String
+        +tokenType: String
+        +expiresIn: long
+        +scope: String
+    }
+    
+    class OidcIdTokenVerifier {
+        +verify(token): VerifiedIdentity
+    }
+    
+    class TokenService {
+        +newAccessToken(userId, sessionId, scope, claims): String
+    }
+    
+    class SessionRefreshService {
+        +createSessionWithRefresh(userId, deviceId, userAgent, ip): SessionWithRefresh
+        +rotateRefreshOrThrow(refreshToken): RotationResult
+        +revokeByRawRefreshToken(refreshToken): void
+    }
+    
+    class DeviceFlowService {
+        +start(verificationUri, clientId, scope): DeviceFlowStart
+        +verify(userCode, userId): boolean
+        +poll(deviceCode): PollResult
     }
 }
 
-package "External Services" {
-    interface OidcVerifier {
-        +verifyIdToken(idToken: String): DecodedToken
+package "Infrastructure Layer" <<clean>> {
+    class UserEntity {
+        -id: String
+        -email: String
+        -normalizedEmail: String
+        -displayName: String
+        -status: short
+        -emailVerified: boolean
+        +toDomain(): User
+        +fromDomain(user): UserEntity
     }
     
-    interface TokenService {
-        +issueFor(user: User, session: Session): TokenPair
-        +refresh(oldRefreshToken: String): TokenPair
+    class UserJpaRepository {
+        +findByNormalizedEmail(email): Optional<UserEntity>
+        +findById(id): Optional<UserEntity>
+        +save(entity): UserEntity
     }
     
-    interface KeyVaultSigner {
-        +signJwt(claims: Map): String
-        +getJwks(): String
+    class UserRepositoryImpl {
+        -jpaRepo: UserJpaRepository
+        +findByNormalizedEmail(email): Optional<User>
+        +findById(userId): Optional<User>
+        +save(user): User
     }
     
-    interface PasswordHasher {
-        +hash(plaintext: String): String
-        +verify(plaintext: String, hash: String): boolean
+    class SessionRepository {
+        +findById(sessionId): Optional<Session>
+        +save(session): Session
+        +findByUserId(userId): List<Session>
     }
     
-    interface CaptchaVerifier {
-        +verify(token: String, ip: String): boolean
+    class RefreshTokenRepository {
+        +findByTokenHash(hash): Optional<RefreshToken>
+        +save(token): RefreshToken
+        +findBySessionId(sessionId): List<RefreshToken>
     }
     
-    interface EmailSender {
-        +send(to: String, subject: String, html: String, text: String): void
+    class EventPublisherImpl {
+        -outboxRepository: OutboxRepository
+        -objectMapper: ObjectMapper
+        +publishUserCreated(event): void
+        +publishUserUpdated(event): void
     }
     
-    interface TotpService {
-        +generateUri(userId: UserId, secretEnc: String): String
-        +verifyCode(secretEnc: String, code: String): boolean
+    class OutboxRepository {
+        +save(event): OutboxEvent
+        +findTop100ByDispatchedAtIsNullOrderByCreatedAtAsc(): List<OutboxEvent>
+        +markDispatched(id, messageId, dispatchedAt): void
+    }
+    
+    class ServiceBusOutboxDispatcher {
+        +dispatch(): void
+    }
+    
+    class CompositeJwkProvider {
+        +getKeyId(): String
+        +getSigner(): JWSSigner
+    }
+    
+    class KeyVaultJwkProvider {
+        +getKeyId(): String
+        +getSigner(): JWSSigner
+    }
+    
+    class LocalRsaJwkProvider {
+        +getKeyId(): String
+        +getSigner(): JWSSigner
+    }
+    
+    database "PostgreSQL" as DB {
+        entity "auth.users" as UsersTable
+        entity "auth.sessions" as SessionsTable
+        entity "auth.refresh_tokens" as RefreshTokensTable
+        entity "auth.outbox_events" as OutboxTable
+    }
+    
+    node "Redis" as Redis {
+        component "Session Cache" as SessionCache
+        component "Device Flow State" as DeviceFlowState
+    }
+    
+    cloud "Azure Services" as Azure {
+        component "Azure AD B2C" as B2C
+        component "Azure Key Vault" as KeyVault
+        component "Azure Service Bus" as ServiceBus
     }
 }
 
-package "Controller" {
+package "Interface Layer" <<clean>> {
     class AuthController {
-        +exchange(req: ExchangeRequest): TokenPair
-        +login(req: LoginRequest): TokenPair
-        +refresh(req: RefreshRequest): TokenPair
-        +logout(req: LogoutRequest): void
-        +deviceStart(req: StartDeviceFlowRequest): Map
-        +deviceActivate(req: ActivateDeviceFlowRequest): void
-        +devicePoll(req: PollDeviceFlowRequest): TokenPair
-        +mfaSetup(req: SetupMfaRequest): Map
-        +mfaVerify(req: VerifyMfaRequest): void
-        +signup(req: SignUpRequest): void
-        +verifyEmail(req: VerifyEmailRequest): TokenPair
-        +resendVerification(req: ResendVerificationRequest): void
-        +jwks(): String
+        +exchange(command): TokenResponse
+        +refresh(command): TokenResponse
+        +logout(command): Map
+    }
+    
+    class DeviceController {
+        +start(request): DeviceStartResponse
+        +activate(request): Map
+        +poll(request): TokenResponse
+    }
+    
+    class JwksController {
+        +jwks(): JWKS
+    }
+    
+    class AuthDtos {
+        +ExchangeRequest
+        +RefreshRequest
+        +LogoutRequest
+        +TokenResponse
+        +DeviceStartRequest
+        +DeviceStartResponse
     }
 }
 
-package "Azure Integrations" {
-    class AzureSQL
-    class AzureKeyVault
-    class Redis
-    class AzureServiceBusTopic
-    class AzureADB2C
-}
+' Relationships
+AuthController --> AuthUseCase
+DeviceController --> DeviceFlowService
+DeviceController --> OidcIdTokenVerifier
+DeviceController --> SessionRefreshService
+JwksController --> CompositeJwkProvider
 
-' Main associations
-AuthController ..> ExchangeTokenUseCase
-AuthController ..> LoginUseCase
-AuthController ..> RefreshUseCase
-AuthController ..> LogoutUseCase
-AuthController ..> StartDeviceFlowUseCase
-AuthController ..> CompleteDeviceFlowUseCase
-AuthController ..> DevicePollUseCase
-AuthController ..> SetupMfaUseCase
-AuthController ..> VerifyMfaUseCase
-AuthController ..> SignUpUseCase
-AuthController ..> VerifyEmailUseCase
+AuthUseCase <|.. AuthUseCaseImpl
+AuthUseCaseImpl --> UserRepository
+AuthUseCaseImpl --> OidcIdTokenVerifier
+AuthUseCaseImpl --> SessionRefreshService
+AuthUseCaseImpl --> TokenService
+AuthUseCaseImpl --> EventPublisher
 
-ExchangeTokenUseCase ..> OidcVerifier
-ExchangeTokenUseCase ..> UserRepository
-ExchangeTokenUseCase ..> SessionRepository
-ExchangeTokenUseCase ..> TokenService
+UserRepository <|.. UserRepositoryImpl
+SessionRepository <|.. SessionRefreshService
+RefreshTokenRepository <|.. SessionRefreshService
+EventPublisher <|.. EventPublisherImpl
 
-LoginUseCase ..> UserRepository
-LoginUseCase ..> PasswordHasher
-LoginUseCase ..> SessionRepository
-LoginUseCase ..> TokenService
+UserRepositoryImpl --> UserJpaRepository
+UserJpaRepository --> UserEntity
+UserEntity --> UsersTable
 
-RefreshUseCase ..> RefreshTokenRepository
-RefreshUseCase ..> TokenService
+SessionRepository --> SessionsTable
+RefreshTokenRepository --> RefreshTokensTable
 
-SignUpUseCase ..> CaptchaVerifier
-SignUpUseCase ..> PasswordHasher
-SignUpUseCase ..> UserRepository
-SignUpUseCase ..> VerificationTokenRepository
-SignUpUseCase ..> EmailSender
+EventPublisherImpl --> OutboxRepository
+OutboxRepository --> OutboxTable
+ServiceBusOutboxDispatcher --> OutboxRepository
+ServiceBusOutboxDispatcher --> ServiceBus
 
-VerifyEmailUseCase ..> VerificationTokenRepository
-VerifyEmailUseCase ..> UserRepository
-VerifyEmailUseCase ..> SessionRepository
-VerifyEmailUseCase ..> TokenService
+TokenService --> CompositeJwkProvider
+CompositeJwkProvider --> KeyVaultJwkProvider
+CompositeJwkProvider --> LocalRsaJwkProvider
+KeyVaultJwkProvider --> KeyVault
 
-SetupMfaUseCase ..> MfaRepository
-SetupMfaUseCase ..> TotpService
-VerifyMfaUseCase ..> MfaRepository
-VerifyMfaUseCase ..> TotpService
-VerifyMfaUseCase ..> UserRepository
+OidcIdTokenVerifier --> B2C
 
-StartDeviceFlowUseCase ..> DeviceFlowRepository
-CompleteDeviceFlowUseCase ..> DeviceFlowRepository
-DevicePollUseCase ..> DeviceFlowRepository
-DevicePollUseCase ..> UserRepository
-DevicePollUseCase ..> SessionRepository
-DevicePollUseCase ..> TokenService
+SessionRefreshService --> SessionCache
+DeviceFlowService --> DeviceFlowState
 
-LogoutUseCase ..> SessionRepository
-LogoutUseCase ..> RefreshTokenRepository
+note right of UserRepository
+  Domain repository interface
+  No framework dependencies
+end note
 
-' Repository implementations
-UserRepository ..> AzureSQL
-SessionRepository ..> AzureSQL
-RefreshTokenRepository ..> AzureSQL
-VerificationTokenRepository ..> AzureSQL
-MfaRepository ..> AzureSQL
-DeviceFlowRepository ..> Redis
+note right of UserRepositoryImpl
+  Infrastructure implementation
+  Bridges domain and JPA
+end note
 
-' External service implementations
-OidcVerifier ..> AzureADB2C
-TokenService ..> KeyVaultSigner
-KeyVaultSigner ..> AzureKeyVault
-PasswordHasher ..> AzureKeyVault
-TotpService ..> AzureKeyVault
+note right of EventPublisher
+  Domain service interface
+  Abstracts event publishing
+end note
+
+note right of EventPublisherImpl
+  Uses transactional outbox pattern
+  Reliable event publishing
+end note
 
 @enduml
+

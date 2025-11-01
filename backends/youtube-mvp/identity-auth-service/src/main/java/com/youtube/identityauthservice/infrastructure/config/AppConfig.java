@@ -5,9 +5,6 @@ import com.youtube.identityauthservice.application.services.OidcIdTokenVerifier;
 import com.youtube.identityauthservice.application.services.SessionRefreshService;
 import com.youtube.identityauthservice.application.services.TokenService;
 import com.youtube.identityauthservice.infrastructure.jwt.JwkProvider;
-import com.youtube.identityauthservice.infrastructure.persistence.OutboxRepository;
-import com.youtube.identityauthservice.infrastructure.persistence.RefreshTokenRepository;
-import com.youtube.identityauthservice.infrastructure.persistence.SessionRepository;
 import com.youtube.identityauthservice.infrastructure.jwt.LocalRsaJwkProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -28,11 +25,11 @@ public class AppConfig {
 
     @Bean
     public SessionRefreshService sessionRefreshService(
-            SessionRepository sessionRepo,
-            RefreshTokenRepository refreshRepo,
-            OutboxRepository outboxRepo,
+            com.youtube.identityauthservice.domain.repositories.SessionRepository sessionRepo,
+            com.youtube.identityauthservice.domain.repositories.RefreshTokenRepository refreshRepo,
+            com.youtube.identityauthservice.domain.services.EventPublisher eventPublisher,
             @Value("${app.refresh-token-ttl-seconds}") int refreshTtl) {
-        return new SessionRefreshService(sessionRepo, refreshRepo, outboxRepo, refreshTtl);
+        return new SessionRefreshService(sessionRepo, refreshRepo, eventPublisher, refreshTtl);
     }
 
     @Bean
@@ -47,5 +44,10 @@ public class AppConfig {
     @Bean
     public OidcIdTokenVerifier oidcVerifier(OidcProperties properties) {
         return new OidcIdTokenVerifier(properties);
+    }
+
+    @Bean
+    public com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
+        return new com.fasterxml.jackson.databind.ObjectMapper();
     }
 }

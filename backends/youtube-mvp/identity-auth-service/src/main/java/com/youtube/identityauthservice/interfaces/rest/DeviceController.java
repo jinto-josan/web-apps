@@ -5,8 +5,8 @@ import com.youtube.identityauthservice.application.services.DeviceFlowService;
 import com.youtube.identityauthservice.application.services.OidcIdTokenVerifier;
 import com.youtube.identityauthservice.application.services.SessionRefreshService;
 import com.youtube.identityauthservice.application.services.TokenService;
-import com.youtube.identityauthservice.domain.model.User;
-import com.youtube.identityauthservice.infrastructure.persistence.UserRepository;
+import com.youtube.identityauthservice.domain.entities.User;
+import com.youtube.identityauthservice.domain.repositories.UserRepository;
 import com.youtube.identityauthservice.interfaces.rest.dto.AuthDtos;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
@@ -76,19 +76,24 @@ public class DeviceController {
 
         String norm = email.toLowerCase(Locale.ROOT);
         User user = userRepo.findByNormalizedEmail(norm).orElseGet(() -> {
-            User u = new User();
-            u.setId(com.github.f4b6a3.ulid.UlidCreator.getUlid().toString());
-            u.setEmail(email);
-            u.setNormalizedEmail(norm);
-            u.setDisplayName(name);
-            u.setEmailVerified(true);
-            u.setStatus((short)1);
-            return u;
+            return User.builder()
+                    .id(UlidCreator.getUlid().toString())
+                    .email(email)
+                    .normalizedEmail(norm)
+                    .displayName(name)
+                    .emailVerified(true)
+                    .status((short)1)
+                    .createdAt(Instant.now())
+                    .updatedAt(Instant.now())
+                    .version(0)
+                    .build();
         });
-        user.setEmail(email);
-        user.setDisplayName(name);
-        user.setEmailVerified(true);
-        user.setUpdatedAt(java.time.Instant.now());
+        user = user.toBuilder()
+                .email(email)
+                .displayName(name)
+                .emailVerified(true)
+                .updatedAt(Instant.now())
+                .build();
         user = userRepo.save(user);
 
         boolean ok = deviceFlow.verify(req.userCode(), user.getId());

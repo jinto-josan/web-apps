@@ -21,5 +21,8 @@
         <module>event-contracts</module>
         <module>id-generation</module>
         <module>error</module>
+        <module>infrastructure</module>
+        <module>shared-models</module>
+        <module>utilities</module>
     </modules>
 </project>

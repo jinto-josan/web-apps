@@ -2,7 +2,7 @@ package com.youtube.identityauthservice.infrastructure.messaging;
 
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.messaging.servicebus.*;
-import com.youtube.identityauthservice.domain.model.OutboxEvent;
+import com.youtube.identityauthservice.infrastructure.persistence.entity.OutboxEventEntity;
 import com.youtube.identityauthservice.infrastructure.config.ServiceBusProperties;
 import com.youtube.identityauthservice.infrastructure.persistence.OutboxRepository;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -34,8 +34,8 @@ public class ServiceBusOutboxDispatcher {
     @Scheduled(fixedDelayString = "${app.outbox.dispatch-interval-ms:2000}")
     @Transactional
     public void dispatch() {
-        List<OutboxEvent> batch = repo.findTop100ByDispatchedAtIsNullOrderByCreatedAtAsc();
-        for (OutboxEvent evt : batch) {
+        List<OutboxEventEntity> batch = repo.findTop100ByDispatchedAtIsNullOrderByCreatedAtAsc();
+        for (OutboxEventEntity evt : batch) {
             try {
                 ServiceBusMessage msg = new ServiceBusMessage(evt.getPayload());
 // Use outbox id for duplicate detection

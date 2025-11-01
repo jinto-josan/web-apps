@@ -96,6 +96,13 @@
             <artifactId>ulid-creator</artifactId>
         </dependency>
 
+        <!-- Common Domain Infrastructure -->
+        <dependency>
+            <groupId>com.youtube.mvp</groupId>
+            <artifactId>common-domain-infrastructure</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+
         <!-- OpenAPI UI (optional) -->
         <dependency>
             <groupId>org.springdoc</groupId>

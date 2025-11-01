@@ -47,6 +47,9 @@
         <module>common-domain/event-contracts</module>
         <module>common-domain/id-generation</module>
         <module>common-domain/error</module>
+        <module>common-domain/infrastructure</module>
+        <module>common-domain/shared-models</module>
+        <module>common-domain/utilities</module>
         
         <!-- Core Services -->
         <module>identity-auth-service</module>
@@ -141,6 +144,21 @@
             <dependency>
                 <groupId>com.youtube.mvp</groupId>
                 <artifactId>error</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.youtube.mvp</groupId>
+                <artifactId>common-domain-infrastructure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.youtube.mvp</groupId>
+                <artifactId>common-domain-shared-models</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.youtube.mvp</groupId>
+                <artifactId>common-domain-utilities</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
