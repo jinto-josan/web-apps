@@ -13,8 +13,6 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.Objects;
 
 public class IdempotencyFilter extends OncePerRequestFilter {
 
@@ -45,10 +43,12 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         byte[] hash = Hashing.sha256(signature);
 
         var existing = repo.findByIdempotencyKeyAndRequestHash(key, hash);
-        if (existing.isPresent() && existing.get().getResponseStatus() != null && existing.get().getResponseBody() != null) {
+        if (existing.isPresent() && existing.get().hasResponse()) {
             HttpIdempotencyEntity idem = existing.get();
             response.setStatus(idem.getResponseStatus());
-            response.getOutputStream().write(idem.getResponseBody());
+            if (idem.getResponseBody() != null) {
+                response.getOutputStream().write(idem.getResponseBody());
+            }
             return;
         }
 
@@ -58,10 +58,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         HttpIdempotencyEntity record = existing.orElseGet(HttpIdempotencyEntity::new);
         record.setIdempotencyKey(key);
         record.setRequestHash(hash);
-        record.setResponseStatus(wrapper.getStatus());
-        record.setResponseBody(wrapper.getContentAsByteArray());
-        record.setUpdatedAt(Instant.now());
-        if (record.getCreatedAt() == null) record.setCreatedAt(Instant.now());
+        record.storeResponse(wrapper.getStatus(), wrapper.getContentAsByteArray());
         repo.save(record);
 
         wrapper.copyBodyToResponse();

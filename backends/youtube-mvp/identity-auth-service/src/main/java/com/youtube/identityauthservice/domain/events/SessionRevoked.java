@@ -29,5 +29,10 @@ public final class SessionRevoked extends DomainEvent {
         this.userId = Objects.requireNonNull(userId);
         this.reason = reason;
     }
+    
+    @Override
+    public String getEventType() {
+        return "session.revoked";
+    }
 }
 

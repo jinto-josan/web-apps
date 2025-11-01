@@ -1,5 +1,6 @@
 package com.youtube.identityauthservice;
 
+import com.microsoft.applicationinsights.attach.ApplicationInsights;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
@@ -15,6 +16,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class IdentityAuthApplication {
     public static void main(String[] args) {
+        // Attach Application Insights agent for auto-instrumentation
+        // This must be called before SpringApplication.run()
+        ApplicationInsights.attach();
+        
         SpringApplication.run(IdentityAuthApplication.class, args);
     }
 }

@@ -2,6 +2,7 @@ package com.youtube.identityauthservice.infrastructure.persistence;
 
 import com.youtube.identityauthservice.domain.entities.RefreshToken;
 import com.youtube.identityauthservice.domain.repositories.RefreshTokenRepository;
+import com.youtube.identityauthservice.domain.valueobjects.SessionId;
 import com.youtube.identityauthservice.infrastructure.persistence.entity.RefreshTokenEntity;
 import org.springframework.stereotype.Component;
 
@@ -29,12 +30,12 @@ public class RefreshTokenRepositoryImpl implements RefreshTokenRepository {
 
     @Override
     public RefreshToken save(RefreshToken refreshToken) {
-        RefreshTokenEntity entity = jpaRepo.findById(refreshToken.getId())
+        RefreshTokenEntity entity = jpaRepo.findById(refreshToken.getId().asString())
                 .map(existing -> {
-                    existing.setSessionId(refreshToken.getSessionId());
+                    existing.setSessionId(refreshToken.getSessionId().asString());
                     existing.setTokenHash(refreshToken.getTokenHash());
                     existing.setExpiresAt(refreshToken.getExpiresAt());
-                    existing.setReplacedByTokenId(refreshToken.getReplacedByTokenId());
+                    existing.setReplacedByTokenId(refreshToken.getReplacedByTokenId() != null ? refreshToken.getReplacedByTokenId().asString() : null);
                     existing.setRevokedAt(refreshToken.getRevokedAt());
                     existing.setRevokeReason(refreshToken.getRevokeReason());
                     existing.setCreatedAt(refreshToken.getCreatedAt());
@@ -46,8 +47,8 @@ public class RefreshTokenRepositoryImpl implements RefreshTokenRepository {
     }
 
     @Override
-    public List<RefreshToken> findBySessionId(String sessionId) {
-        return jpaRepo.findBySessionId(sessionId).stream()
+    public List<RefreshToken> findBySessionId(SessionId sessionId) {
+        return jpaRepo.findBySessionId(sessionId.asString()).stream()
                 .map(RefreshTokenEntity::toDomain)
                 .collect(Collectors.toList());
     }

@@ -52,11 +52,11 @@ public class RefreshTokenEntity {
      */
     public com.youtube.identityauthservice.domain.entities.RefreshToken toDomain() {
         return com.youtube.identityauthservice.domain.entities.RefreshToken.builder()
-                .id(id)
-                .sessionId(sessionId)
+                .id(com.youtube.identityauthservice.domain.valueobjects.RefreshTokenId.from(id))
+                .sessionId(com.youtube.identityauthservice.domain.valueobjects.SessionId.from(sessionId))
                 .tokenHash(tokenHash)
                 .expiresAt(expiresAt)
-                .replacedByTokenId(replacedByTokenId)
+                .replacedByTokenId(replacedByTokenId != null ? com.youtube.identityauthservice.domain.valueobjects.RefreshTokenId.from(replacedByTokenId) : null)
                 .revokedAt(revokedAt)
                 .revokeReason(revokeReason)
                 .createdAt(createdAt)
@@ -68,11 +68,11 @@ public class RefreshTokenEntity {
      */
     public static RefreshTokenEntity fromDomain(com.youtube.identityauthservice.domain.entities.RefreshToken refreshToken) {
         RefreshTokenEntity entity = new RefreshTokenEntity();
-        entity.setId(refreshToken.getId());
-        entity.setSessionId(refreshToken.getSessionId());
+        entity.setId(refreshToken.getId().asString());
+        entity.setSessionId(refreshToken.getSessionId().asString());
         entity.setTokenHash(refreshToken.getTokenHash());
         entity.setExpiresAt(refreshToken.getExpiresAt());
-        entity.setReplacedByTokenId(refreshToken.getReplacedByTokenId());
+        entity.setReplacedByTokenId(refreshToken.getReplacedByTokenId() != null ? refreshToken.getReplacedByTokenId().asString() : null);
         entity.setRevokedAt(refreshToken.getRevokedAt());
         entity.setRevokeReason(refreshToken.getRevokeReason());
         entity.setCreatedAt(refreshToken.getCreatedAt());

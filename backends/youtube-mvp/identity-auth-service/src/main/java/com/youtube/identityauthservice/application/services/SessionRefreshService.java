@@ -1,6 +1,7 @@
 package com.youtube.identityauthservice.application.services;
 
 import com.github.f4b6a3.ulid.UlidCreator;
+import com.youtube.common.domain.shared.valueobjects.UserId;
 import com.youtube.identityauthservice.domain.entities.RefreshToken;
 import com.youtube.identityauthservice.domain.entities.Session;
 import com.youtube.identityauthservice.domain.events.RefreshTokenReuseDetected;
@@ -10,6 +11,8 @@ import com.youtube.identityauthservice.domain.events.SessionRevoked;
 import com.youtube.identityauthservice.domain.repositories.RefreshTokenRepository;
 import com.youtube.identityauthservice.domain.repositories.SessionRepository;
 import com.youtube.identityauthservice.domain.services.EventPublisher;
+import com.youtube.identityauthservice.domain.valueobjects.RefreshTokenId;
+import com.youtube.identityauthservice.domain.valueobjects.SessionId;
 import com.youtube.identityauthservice.infrastructure.util.Hashing;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,8 +54,8 @@ public class SessionRefreshService {
     }
 
     @Transactional
-    public SessionWithRefresh createSessionWithRefresh(String userId, String deviceId, String userAgent, String ip) {
-        String sessionId = UlidCreator.getUlid().toString();
+    public SessionWithRefresh createSessionWithRefresh(UserId userId, String deviceId, String userAgent, String ip) {
+        SessionId sessionId = SessionId.from(UlidCreator.getUlid().toString());
         Session s = Session.builder()
                 .id(sessionId)
                 .userId(userId)
@@ -66,7 +69,7 @@ public class SessionRefreshService {
         Map.Entry<String, RefreshToken> rt = mintRefreshForSession(s.getId());
         
         // Publish domain event
-        SessionCreated event = new SessionCreated(s.getId(), userId, deviceId, userAgent, ip);
+        SessionCreated event = new SessionCreated(s.getId().asString(), userId.asString(), deviceId, userAgent, ip);
         eventPublisher.publishSessionCreated(event);
         
         return new SessionWithRefresh(s, rt.getKey(), rt.getValue());
@@ -79,27 +82,32 @@ public class SessionRefreshService {
         if (token.getRevokedAt() != null || token.getReplacedByTokenId() != null || token.getExpiresAt().isBefore(Instant.now())) {
             Session s = sessionRepo.findById(token.getSessionId()).orElseThrow();
             RefreshTokenReuseDetected event = new RefreshTokenReuseDetected(
-                    token.getSessionId(), s.getUserId(), token.getId(), "refresh_reuse_or_expired");
+                    token.getSessionId().asString(), s.getUserId().asString(), token.getId().asString(), "refresh_reuse_or_expired");
             eventPublisher.publishRefreshTokenReuseDetected(event);
             revokeWholeSessionChain(token.getSessionId(), "refresh_reuse_or_expired");
             throw new SecurityException("Refresh token reuse/expired");
         }
 
         Map.Entry<String, RefreshToken> newRt = mintRefreshForSession(token.getSessionId());
-        token = token.toBuilder()
-                .replacedByTokenId(newRt.getValue().getId())
-                .build();
+        token = token.replaceWith(newRt.getValue().getId());
         refreshRepo.save(token);
 
         Session s = sessionRepo.findById(token.getSessionId()).orElseThrow();
-        s = s.toBuilder()
+        s = Session.builder()
+                .id(s.getId())
+                .userId(s.getUserId())
                 .jti(UUID.randomUUID().toString())
+                .deviceId(s.getDeviceId())
+                .userAgent(s.getUserAgent())
+                .ip(s.getIp())
+                .revokedAt(s.getRevokedAt())
+                .revokeReason(s.getRevokeReason())
                 .build();
         s = sessionRepo.save(s);
 
         // Publish domain event
         RefreshTokenRotated event = new RefreshTokenRotated(
-                s.getId(), s.getUserId(), token.getId(), newRt.getValue().getId());
+                s.getId().asString(), s.getUserId().asString(), token.getId().asString(), newRt.getValue().getId().asString());
         eventPublisher.publishRefreshTokenRotated(event);
         
         return new RotationResult(s, newRt.getKey(), newRt.getValue());
@@ -116,41 +124,38 @@ public class SessionRefreshService {
         return refreshRepo.findByTokenHash(hash).orElseThrow(() -> new SecurityException("Unknown refresh token"));
     }
 
-    private void revokeWholeSessionChain(String sessionId, String reason) {
+    private void revokeWholeSessionChain(SessionId sessionId, String reason) {
         Session s = sessionRepo.findById(sessionId).orElseThrow();
         if (s.getRevokedAt() == null) {
-            s = s.toBuilder()
-                    .revokedAt(Instant.now())
-                    .revokeReason(reason)
-                    .build();
+            s = s.revoke(reason);
             s = sessionRepo.save(s);
         }
         List<RefreshToken> tokens = refreshRepo.findBySessionId(sessionId);
         for (RefreshToken rt : tokens) {
             if (rt.getRevokedAt() == null) {
-                rt = rt.toBuilder()
-                        .revokedAt(Instant.now())
-                        .revokeReason("chain_revoked:" + reason)
-                        .build();
+                rt = rt.revoke("chain_revoked:" + reason);
                 refreshRepo.save(rt);
             }
         }
         
         // Publish domain event
-        SessionRevoked event = new SessionRevoked(s.getId(), s.getUserId(), reason);
+        SessionRevoked event = new SessionRevoked(s.getId().asString(), s.getUserId().asString(), reason);
         eventPublisher.publishSessionRevoked(event);
     }
 
-    private Map.Entry<String, RefreshToken> mintRefreshForSession(String sessionId) {
-        String tokenId = UlidCreator.getUlid().toString();
+    private Map.Entry<String, RefreshToken> mintRefreshForSession(SessionId sessionId) {
+        RefreshTokenId tokenId = RefreshTokenId.from(UlidCreator.getUlid().toString());
         String secret = UUID.randomUUID().toString().replace("-", "");
-        String raw = tokenId + "." + secret;
+        String raw = tokenId.asString() + "." + secret;
         RefreshToken rt = RefreshToken.builder()
                 .id(tokenId)
                 .sessionId(sessionId)
-                .tokenHash(Hashing.sha256(raw))
+                .tokenHash(Hashing.sha256(raw.getBytes(StandardCharsets.UTF_8)))
                 .createdAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(refreshTtlSeconds))
+                .revokedAt(null)
+                .revokeReason(null)
+                .replacedByTokenId(null)
                 .build();
         rt = refreshRepo.save(rt);
         return Map.entry(raw, rt);

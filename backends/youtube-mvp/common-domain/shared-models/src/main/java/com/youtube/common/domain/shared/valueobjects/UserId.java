@@ -20,7 +20,7 @@ import java.util.Objects;
  *   <li>history-service - Watch history</li>
  * </ul>
  */
-public final class UserId implements Identifier {
+public final class UserId implements Identifier<String> {
     
     @NotBlank
     private final String value;

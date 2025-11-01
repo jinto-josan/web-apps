@@ -38,11 +38,10 @@ public class ServiceBusOutboxDispatcher {
         for (OutboxEventEntity evt : batch) {
             try {
                 ServiceBusMessage msg = new ServiceBusMessage(evt.getPayload());
-// Use outbox id for duplicate detection
+                // Use outbox id for duplicate detection
                 msg.setMessageId(evt.getId());
-                msg.setSubject(evt.getType());
+                msg.setSubject(evt.getEventType());
                 msg.setContentType("application/json");
-
 
                 // Enrich with useful metadata
                 if (evt.getAggregateType() != null) msg.getApplicationProperties().put("aggregateType", evt.getAggregateType());

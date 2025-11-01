@@ -61,8 +61,8 @@ public class SessionEntity {
      */
     public com.youtube.identityauthservice.domain.entities.Session toDomain() {
         return com.youtube.identityauthservice.domain.entities.Session.builder()
-                .id(id)
-                .userId(userId)
+                .id(com.youtube.identityauthservice.domain.valueobjects.SessionId.from(id))
+                .userId(com.youtube.common.domain.shared.valueobjects.UserId.from(userId))
                 .jti(jti)
                 .deviceId(deviceId)
                 .userAgent(userAgent)
@@ -77,8 +77,8 @@ public class SessionEntity {
      */
     public static SessionEntity fromDomain(com.youtube.identityauthservice.domain.entities.Session session) {
         SessionEntity entity = new SessionEntity();
-        entity.setId(session.getId());
-        entity.setUserId(session.getUserId());
+        entity.setId(session.getId().asString());
+        entity.setUserId(session.getUserId().asString());
         entity.setJti(session.getJti());
         entity.setDeviceId(session.getDeviceId());
         entity.setUserAgent(session.getUserAgent());

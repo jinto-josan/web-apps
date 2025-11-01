@@ -1,14 +1,16 @@
 package com.youtube.identityauthservice.domain.repositories;
 
+import com.youtube.common.domain.repository.Repository;
+import com.youtube.common.domain.shared.valueobjects.UserId;
 import com.youtube.identityauthservice.domain.entities.User;
 
 import java.util.Optional;
 
 /**
  * Repository interface for user entities.
- * Follows the Repository pattern to abstract data access.
+ * Extends common-domain Repository for aggregate root support.
  */
-public interface UserRepository {
+public interface UserRepository extends Repository<User, UserId> {
     
     /**
      * Finds a user by normalized email.
@@ -17,22 +19,6 @@ public interface UserRepository {
      * @return an Optional containing the user if found
      */
     Optional<User> findByNormalizedEmail(String normalizedEmail);
-    
-    /**
-     * Finds a user by ID.
-     * 
-     * @param userId the user ID
-     * @return an Optional containing the user if found
-     */
-    Optional<User> findById(String userId);
-    
-    /**
-     * Saves a new user.
-     * 
-     * @param user the user to save
-     * @return the saved user with generated ID
-     */
-    User save(User user);
     
     /**
      * Checks if a user exists for the given normalized email.

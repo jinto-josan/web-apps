@@ -1,6 +1,7 @@
 package com.youtube.identityauthservice.domain.repositories;
 
 import com.youtube.identityauthservice.domain.entities.RefreshToken;
+import com.youtube.identityauthservice.domain.valueobjects.SessionId;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +15,6 @@ public interface RefreshTokenRepository {
     
     RefreshToken save(RefreshToken refreshToken);
     
-    List<RefreshToken> findBySessionId(String sessionId);
+    List<RefreshToken> findBySessionId(SessionId sessionId);
 }
 

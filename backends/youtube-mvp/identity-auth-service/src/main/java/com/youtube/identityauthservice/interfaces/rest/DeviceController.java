@@ -1,12 +1,13 @@
 package com.youtube.identityauthservice.interfaces.rest;
 
-import com.github.f4b6a3.ulid.UlidCreator;
+import com.youtube.common.domain.shared.valueobjects.UserId;
 import com.youtube.identityauthservice.application.services.DeviceFlowService;
 import com.youtube.identityauthservice.application.services.OidcIdTokenVerifier;
 import com.youtube.identityauthservice.application.services.SessionRefreshService;
 import com.youtube.identityauthservice.application.services.TokenService;
 import com.youtube.identityauthservice.domain.entities.User;
 import com.youtube.identityauthservice.domain.repositories.UserRepository;
+import com.youtube.identityauthservice.infrastructure.persistence.UserRepositoryImpl;
 import com.youtube.identityauthservice.interfaces.rest.dto.AuthDtos;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +25,7 @@ public class DeviceController {
     private final DeviceFlowService deviceFlow;
     private final OidcIdTokenVerifier verifier;
     private final UserRepository userRepo;
+    private final UserRepositoryImpl userRepositoryImpl;
     private final SessionRefreshService sessionService;
     private final TokenService tokenService;
 
@@ -34,11 +36,12 @@ public class DeviceController {
     private int accessTtl;
 
     public DeviceController(DeviceFlowService deviceFlow, OidcIdTokenVerifier verifier,
-                            UserRepository userRepo, SessionRefreshService sessionService,
-                            TokenService tokenService) {
+                            UserRepository userRepo, UserRepositoryImpl userRepositoryImpl,
+                            SessionRefreshService sessionService, TokenService tokenService) {
         this.deviceFlow = deviceFlow;
         this.verifier = verifier;
         this.userRepo = userRepo;
+        this.userRepositoryImpl = userRepositoryImpl;
         this.sessionService = sessionService;
         this.tokenService = tokenService;
     }
@@ -58,11 +61,11 @@ public class DeviceController {
         if (result.status == DeviceFlowService.Status.AUTHORIZATION_PENDING) return Map.of("error", "authorization_pending");
 
         // Approved => issue tokens for approvedUserId
-        String userId = result.approvedUserId;
+        UserId userId = UserId.from(result.approvedUserId);
         User user = userRepo.findById(userId).orElseThrow();
         var sAndRt = sessionService.createSessionWithRefresh(user.getId(), "device", "", "");
         String scope = "openid profile offline_access";
-        String access = tokenService.newAccessToken(user.getId(), sAndRt.session.getId(), scope,
+        String access = tokenService.newAccessToken(user.getId().asString(), sAndRt.session.getId().asString(), scope,
                 Map.of("name", user.getDisplayName(), "email", user.getEmail()));
         return new AuthDtos.TokenResponse(access, sAndRt.refreshTokenRaw, "Bearer", accessTtl, scope);
     }
@@ -73,11 +76,10 @@ public class DeviceController {
         String email = Optional.ofNullable(vi.email()).orElseThrow(() -> new SecurityException("email claim missing"));
         String name = Optional.ofNullable(vi.name()).orElse(email);
 
-
         String norm = email.toLowerCase(Locale.ROOT);
         User user = userRepo.findByNormalizedEmail(norm).orElseGet(() -> {
             return User.builder()
-                    .id(UlidCreator.getUlid().toString())
+                    .id(UserId.from(com.github.f4b6a3.ulid.UlidCreator.getUlid().toString()))
                     .email(email)
                     .normalizedEmail(norm)
                     .displayName(name)
@@ -88,15 +90,13 @@ public class DeviceController {
                     .version(0)
                     .build();
         });
-        user = user.toBuilder()
-                .email(email)
-                .displayName(name)
-                .emailVerified(true)
-                .updatedAt(Instant.now())
-                .build();
-        user = userRepo.save(user);
+        user = user.withEmail(email)
+                .withDisplayName(name)
+                .withEmailVerified(true)
+                .markUpdated();
+        user = userRepositoryImpl.saveUser(user);
 
-        boolean ok = deviceFlow.verify(req.userCode(), user.getId());
+        boolean ok = deviceFlow.verify(req.userCode(), user.getId().asString());
         return java.util.Map.of("ok", ok);
     }
 }

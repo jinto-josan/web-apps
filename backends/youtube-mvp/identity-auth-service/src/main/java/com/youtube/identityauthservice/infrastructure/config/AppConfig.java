@@ -5,7 +5,6 @@ import com.youtube.identityauthservice.application.services.OidcIdTokenVerifier;
 import com.youtube.identityauthservice.application.services.SessionRefreshService;
 import com.youtube.identityauthservice.application.services.TokenService;
 import com.youtube.identityauthservice.infrastructure.jwt.JwkProvider;
-import com.youtube.identityauthservice.infrastructure.jwt.LocalRsaJwkProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

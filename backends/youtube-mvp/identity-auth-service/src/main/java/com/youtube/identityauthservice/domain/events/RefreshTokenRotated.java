@@ -33,5 +33,10 @@ public final class RefreshTokenRotated extends DomainEvent {
         this.oldTokenId = oldTokenId;
         this.newTokenId = Objects.requireNonNull(newTokenId);
     }
+    
+    @Override
+    public String getEventType() {
+        return "refresh_token.rotated";
+    }
 }
 

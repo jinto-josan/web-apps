@@ -44,11 +44,11 @@
     <modules>
         <!-- Common Domain Modules -->
         <module>common-domain</module>
-        <module>common-domain/event-contracts</module>
+        <!-- <module>common-domain/event-contracts</module>
         <module>common-domain/error</module>
         <module>common-domain/infrastructure</module>
         <module>common-domain/shared-models</module>
-        <module>common-domain/utilities</module>
+        <module>common-domain/utilities</module> -->
         
         <!-- Core Services -->
         <module>identity-auth-service</module>
@@ -133,11 +133,6 @@
             <dependency>
                 <groupId>com.youtube.mvp</groupId>
                 <artifactId>common-domain-event-contracts</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.youtube.mvp</groupId>
-                <artifactId>id-generation</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

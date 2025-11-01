@@ -33,5 +33,10 @@ public final class UserUpdated extends DomainEvent {
         this.displayName = Objects.requireNonNull(displayName);
         this.emailVerified = emailVerified;
     }
+    
+    @Override
+    public String getEventType() {
+        return "user.updated";
+    }
 }
 

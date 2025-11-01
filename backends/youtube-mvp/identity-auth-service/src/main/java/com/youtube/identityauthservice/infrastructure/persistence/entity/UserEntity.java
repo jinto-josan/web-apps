@@ -86,7 +86,7 @@ public class UserEntity {
      */
     public User toDomain() {
         return User.builder()
-                .id(id)
+                .id(com.youtube.common.domain.shared.valueobjects.UserId.from(id))
                 .email(email)
                 .normalizedEmail(normalizedEmail)
                 .displayName(displayName)
@@ -99,7 +99,7 @@ public class UserEntity {
                 .termsAcceptedAt(termsAcceptedAt)
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)
-                .version(version)
+                .version(version != null ? version.longValue() : 0L)
                 .build();
     }
     
@@ -108,7 +108,7 @@ public class UserEntity {
      */
     public static UserEntity fromDomain(User user) {
         UserEntity entity = new UserEntity();
-        entity.setId(user.getId());
+        entity.setId(user.getId().asString());
         entity.setEmail(user.getEmail());
         entity.setNormalizedEmail(user.getNormalizedEmail());
         entity.setDisplayName(user.getDisplayName());
@@ -121,7 +121,7 @@ public class UserEntity {
         entity.setTermsAcceptedAt(user.getTermsAcceptedAt());
         entity.setCreatedAt(user.getCreatedAt());
         entity.setUpdatedAt(user.getUpdatedAt());
-        entity.setVersion(user.getVersion());
+        entity.setVersion((int) user.getVersion());
         return entity;
     }
 }

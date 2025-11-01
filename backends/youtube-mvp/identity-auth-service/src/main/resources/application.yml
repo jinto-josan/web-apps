@@ -27,6 +27,31 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+  metrics:
+    export:
+      azure-monitor:
+        enabled: true
+        # Connection string for Application Insights
+        # Can also be set via APPLICATIONINSIGHTS_CONNECTION_STRING environment variable
+        connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
+        # Sampling rate (0.0 to 1.0)
+        sampling:
+          percentage: ${APPLICATIONINSIGHTS_SAMPLING_PERCENTAGE:1.0}
+      prometheus:
+        enabled: true
+
+# Application Insights Configuration
+applicationinsights:
+  # Connection string for Application Insights
+  # Can be set via environment variable APPLICATIONINSIGHTS_CONNECTION_STRING
+  connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
+  # Enable/disable Application Insights
+  enabled: ${APPLICATIONINSIGHTS_ENABLED:true}
+  # Sampling percentage (0.0 to 1.0)
+  sampling:
+    percentage: ${APPLICATIONINSIGHTS_SAMPLING_PERCENTAGE:1.0}
+  # Instrumentation key (legacy, connection string is preferred)
+  instrumentation-key: ${APPLICATIONINSIGHTS_INSTRUMENTATION_KEY:}
 
 # SpringDoc OpenAPI Configuration
 springdoc:

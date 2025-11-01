@@ -33,5 +33,10 @@ public final class RefreshTokenReuseDetected extends DomainEvent {
         this.tokenId = tokenId;
         this.reason = Objects.requireNonNull(reason);
     }
+    
+    @Override
+    public String getEventType() {
+        return "refresh_token.reuse_detected";
+    }
 }
 

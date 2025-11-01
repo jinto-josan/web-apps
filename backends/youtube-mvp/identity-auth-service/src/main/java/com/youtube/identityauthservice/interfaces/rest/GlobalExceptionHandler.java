@@ -1,9 +1,7 @@
 package com.youtube.identityauthservice.interfaces.rest;
 
-import com.youtube.common.domain.error.*;
-import org.springframework.http.HttpStatus;
+import com.youtube.common.domain.error.ProblemDetailBuilder;
 import org.springframework.http.ProblemDetail;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 

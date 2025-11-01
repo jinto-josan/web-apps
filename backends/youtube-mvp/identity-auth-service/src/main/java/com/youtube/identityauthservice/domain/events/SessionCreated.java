@@ -36,5 +36,10 @@ public final class SessionCreated extends DomainEvent {
         this.userAgent = userAgent;
         this.ip = ip;
     }
+    
+    @Override
+    public String getEventType() {
+        return "session.created";
+    }
 }
 

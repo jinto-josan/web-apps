@@ -21,7 +21,7 @@ import java.util.UUID;
  *   <li>comments-service - Video comments</li>
  * </ul>
  */
-public final class VideoId implements Identifier {
+public final class VideoId implements Identifier<String> {
     
     @NotBlank
     private final String value;

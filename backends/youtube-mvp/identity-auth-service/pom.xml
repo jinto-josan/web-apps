@@ -134,6 +134,20 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
+        
+        <!-- Azure Application Insights -->
+        <!-- Application Insights Java Agent for auto-instrumentation -->
+        <dependency>
+            <groupId>com.microsoft.azure</groupId>
+            <artifactId>applicationinsights-runtime-attach</artifactId>
+            <version>3.7.5</version>
+        </dependency>
+        
+        <!-- Metrics export to Application Insights via Micrometer -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-azure-monitor</artifactId>
+        </dependency>
 
 
         <!-- Testing -->

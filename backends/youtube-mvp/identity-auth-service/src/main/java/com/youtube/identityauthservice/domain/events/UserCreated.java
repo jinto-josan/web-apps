@@ -44,5 +44,10 @@ public final class UserCreated extends DomainEvent {
         this.status = status;
         this.createdAt = Objects.requireNonNull(createdAt);
     }
+    
+    @Override
+    public String getEventType() {
+        return "user.created";
+    }
 }
 

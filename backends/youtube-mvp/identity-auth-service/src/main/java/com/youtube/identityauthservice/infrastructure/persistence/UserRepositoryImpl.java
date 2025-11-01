@@ -26,39 +26,60 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
-    public Optional<User> findById(String userId) {
-        return jpaRepo.findById(userId)
+    public Optional<User> findById(com.youtube.common.domain.shared.valueobjects.UserId userId) {
+        return jpaRepo.findById(userId.asString())
                 .map(UserEntity::toDomain);
     }
 
     @Override
-    public User save(User user) {
-        UserEntity entity = jpaRepo.findById(user.getId())
+    public void save(User aggregate) {
+        UserEntity entity = jpaRepo.findById(aggregate.getId().asString())
                 .map(existing -> {
                     // Update existing
-                    existing.setEmail(user.getEmail());
-                    existing.setNormalizedEmail(user.getNormalizedEmail());
-                    existing.setDisplayName(user.getDisplayName());
-                    existing.setStatus(user.getStatus());
-                    existing.setEmailVerified(user.isEmailVerified());
-                    existing.setPasswordHash(user.getPasswordHash());
-                    existing.setPasswordAlg(user.getPasswordAlg());
-                    existing.setMfaEnabled(user.isMfaEnabled());
-                    existing.setTermsVersion(user.getTermsVersion());
-                    existing.setTermsAcceptedAt(user.getTermsAcceptedAt());
-                    existing.setCreatedAt(user.getCreatedAt());
-                    existing.setUpdatedAt(user.getUpdatedAt());
-                    existing.setVersion(user.getVersion());
+                    existing.setEmail(aggregate.getEmail());
+                    existing.setNormalizedEmail(aggregate.getNormalizedEmail());
+                    existing.setDisplayName(aggregate.getDisplayName());
+                    existing.setStatus(aggregate.getStatus());
+                    existing.setEmailVerified(aggregate.isEmailVerified());
+                    existing.setPasswordHash(aggregate.getPasswordHash());
+                    existing.setPasswordAlg(aggregate.getPasswordAlg());
+                    existing.setMfaEnabled(aggregate.isMfaEnabled());
+                    existing.setTermsVersion(aggregate.getTermsVersion());
+                    existing.setTermsAcceptedAt(aggregate.getTermsAcceptedAt());
+                    existing.setCreatedAt(aggregate.getCreatedAt());
+                    existing.setUpdatedAt(aggregate.getUpdatedAt());
+                    existing.setVersion((int) aggregate.getVersion());
                     return existing;
                 })
-                .orElseGet(() -> UserEntity.fromDomain(user));
-        UserEntity saved = jpaRepo.save(entity);
-        return saved.toDomain();
+                .orElseGet(() -> UserEntity.fromDomain(aggregate));
+        jpaRepo.save(entity);
+    }
+
+    @Override
+    public void save(User aggregate, long expectedVersion) {
+        User existing = findById(aggregate.getId()).orElse(null);
+        if (existing != null && existing.getVersion() != expectedVersion) {
+            throw new com.youtube.common.domain.core.ConcurrencyException(
+                "User " + aggregate.getId().asString() + " version mismatch. Expected: " + expectedVersion + ", found: " + existing.getVersion()
+            );
+        }
+        save(aggregate);
     }
 
     @Override
     public boolean existsByNormalizedEmail(String normalizedEmail) {
         return jpaRepo.existsByNormalizedEmail(normalizedEmail);
+    }
+
+    @Override
+    public void delete(User aggregate) {
+        jpaRepo.deleteById(aggregate.getId().asString());
+    }
+    
+    // Legacy method for backward compatibility - delegates to Repository.save
+    public User saveUser(User user) {
+        save(user);
+        return findById(user.getId()).orElseThrow();
     }
 }
 

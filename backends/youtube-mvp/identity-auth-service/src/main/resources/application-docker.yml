@@ -62,9 +62,27 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+  metrics:
+    export:
+      azure-monitor:
+        enabled: true
+        connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
+        sampling:
+          percentage: ${APPLICATIONINSIGHTS_SAMPLING_PERCENTAGE:1.0}
+      prometheus:
+        enabled: true
+
+# Application Insights Configuration
+applicationinsights:
+  connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
+  enabled: ${APPLICATIONINSIGHTS_ENABLED:true}
+  sampling:
+    percentage: ${APPLICATIONINSIGHTS_SAMPLING_PERCENTAGE:1.0}
+  instrumentation-key: ${APPLICATIONINSIGHTS_INSTRUMENTATION_KEY:}
 
 logging:
   level:
     com.youtube.identityauthservice: ${LOG_LEVEL:INFO}
     org.springframework.web: WARN
     org.hibernate.SQL: WARN
+    com.microsoft.applicationinsights: ${APPLICATIONINSIGHTS_LOG_LEVEL:INFO}

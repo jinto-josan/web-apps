@@ -19,7 +19,7 @@ import java.util.Objects;
  *   <li>studio-analytics-service - Channel analytics</li>
  * </ul>
  */
-public final class ChannelId implements Identifier {
+public final class ChannelId implements Identifier<String> {
     
     @NotBlank
     private final String value;
