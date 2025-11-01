@@ -1,5 +1,6 @@
 package com.youtube.identityauthservice.domain.events;
 
+import com.youtube.common.domain.core.DomainEvent;
 import lombok.Getter;
 
 import java.time.Instant;

@@ -1,6 +1,6 @@
 package com.youtube.userprofileservice.domain.events;
 
-import com.youtube.common.domain.DomainEvent;
+import com.youtube.common.domain.core.DomainEvent;
 import lombok.Getter;
 
 import java.time.Instant;

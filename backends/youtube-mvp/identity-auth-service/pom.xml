@@ -96,10 +96,30 @@
             <artifactId>ulid-creator</artifactId>
         </dependency>
 
-        <!-- Common Domain Infrastructure -->
+        <!-- Common Domain Modules -->
         <dependency>
             <groupId>com.youtube.mvp</groupId>
             <artifactId>common-domain-infrastructure</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.youtube.mvp</groupId>
+            <artifactId>common-domain-error</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.youtube.mvp</groupId>
+            <artifactId>common-domain-shared-models</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.youtube.mvp</groupId>
+            <artifactId>common-domain-utilities</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.youtube.mvp</groupId>
+            <artifactId>common-domain-event-contracts</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
 

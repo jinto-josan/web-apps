@@ -55,18 +55,31 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
         
-        <!-- Common Domain Dependencies -->
+        <!-- Common Domain Modules -->
         <dependency>
             <groupId>com.youtube.mvp</groupId>
-            <artifactId>event-contracts</artifactId>
+            <artifactId>common-domain-infrastructure</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.youtube.mvp</groupId>
-            <artifactId>id-generation</artifactId>
+            <artifactId>common-domain-error</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.youtube.mvp</groupId>
-            <artifactId>error</artifactId>
+            <artifactId>common-domain-shared-models</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.youtube.mvp</groupId>
+            <artifactId>common-domain-utilities</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.youtube.mvp</groupId>
+            <artifactId>common-domain-event-contracts</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
         </dependency>
         
         <!-- ULID Generation -->

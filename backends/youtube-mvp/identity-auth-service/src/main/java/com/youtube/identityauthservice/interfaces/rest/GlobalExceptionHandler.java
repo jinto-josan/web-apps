@@ -1,27 +1,24 @@
 package com.youtube.identityauthservice.interfaces.rest;
 
+import com.youtube.common.domain.error.*;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.http.ProblemDetail;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.util.Map;
-
-@ControllerAdvice
-public class GlobalExceptionHandler {
-
+/**
+ * Global exception handler for Identity Auth Service.
+ * Extends the common-domain error handler and adds service-specific handlers.
+ */
+@RestControllerAdvice
+public class GlobalExceptionHandler extends com.youtube.common.domain.error.GlobalExceptionHandler {
+    
+    /**
+     * Handles security exceptions specific to authentication/authorization.
+     */
     @ExceptionHandler(SecurityException.class)
-    public ResponseEntity<?> handleSecurity(SecurityException ex) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", ex.getMessage()));
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<?> handleIllegal(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> handleGeneric(Exception ex) {
-        return ResponseEntity.status(500).body(Map.of("error", "internal_error"));
+    public ProblemDetail handleSecurity(SecurityException ex) {
+        return ProblemDetailBuilder.unauthorized(ex.getMessage());
     }
 }
