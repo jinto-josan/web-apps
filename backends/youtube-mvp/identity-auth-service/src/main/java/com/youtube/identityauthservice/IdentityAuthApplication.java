@@ -4,6 +4,7 @@ import com.microsoft.applicationinsights.attach.ApplicationInsights;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
@@ -11,7 +12,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * This service handles authentication and authorization for the YouTube MVP platform,
  * including local login, Azure AD B2C integration, device flow, MFA, and more.
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages =  {
+        "com.youtube.identityauthservice",
+        "com.youtube.common.domain"
+})
 @ConfigurationPropertiesScan
 @EnableScheduling
 public class IdentityAuthApplication {

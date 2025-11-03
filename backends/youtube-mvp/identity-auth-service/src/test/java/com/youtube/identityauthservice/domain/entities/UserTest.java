@@ -1,225 +1,230 @@
 package com.youtube.identityauthservice.domain.entities;
 
-import com.youtube.identityauthservice.domain.valueobjects.*;
-import org.junit.jupiter.api.Test;
+import com.youtube.common.domain.shared.valueobjects.UserId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Test cases for User domain entity.
- */
-@DisplayName("User Tests")
+@DisplayName("User Entity Tests")
 class UserTest {
+
+    private static final Instant NOW = Instant.parse("2024-01-01T00:00:00Z");
+    private static final UserId TEST_USER_ID = UserId.from("user-123");
 
     @Nested
     @DisplayName("Creation Tests")
     class CreationTests {
-        
+
         @Test
-        @DisplayName("Should create user with basic information")
-        void shouldCreateUserWithBasicInformation() {
-            UserId userId = UserId.generate();
-            Email email = Email.of("test@example.com");
-            String aadSubject = "aad-subject-123";
-            
-            User user = User.create(userId, email, aadSubject);
-            
+        @DisplayName("Should create user with builder")
+        void shouldCreateUserWithBuilder() {
+            User user = User.builder()
+                    .id(TEST_USER_ID)
+                    .email("test@example.com")
+                    .normalizedEmail("test@example.com")
+                    .displayName("Test User")
+                    .emailVerified(true)
+                    .status((short) 1)
+                    .createdAt(NOW)
+                    .updatedAt(NOW)
+                    .version(0)
+                    .build();
+
             assertNotNull(user);
-            assertEquals(userId, user.getId());
-            assertEquals(email, user.getEmail());
-            assertEquals(aadSubject, user.getAadSubject());
-            assertEquals(UserStatus.ACTIVE, user.getStatus());
-            assertEquals(Set.of(Role.USER), user.getRoles());
-            assertFalse(user.isMfaEnabled());
-            assertNull(user.getLastLoginAt());
+            assertEquals(TEST_USER_ID, user.getId());
+            assertEquals("test@example.com", user.getEmail());
+            assertEquals("test@example.com", user.getNormalizedEmail());
+            assertEquals("Test User", user.getDisplayName());
+            assertTrue(user.isEmailVerified());
+            assertEquals((short) 1, user.getStatus());
+            assertEquals(0, user.getVersion());
         }
-        
+
         @Test
-        @DisplayName("Should create user with custom roles")
-        void shouldCreateUserWithCustomRoles() {
-            UserId userId = UserId.generate();
-            Email email = Email.of("admin@example.com");
-            String aadSubject = "aad-subject-456";
-            Set<Role> roles = Set.of(Role.ADMIN, Role.CREATOR);
-            
-            User user = User.createWithRoles(userId, email, aadSubject, roles);
-            
+        @DisplayName("Should create user with minimal fields")
+        void shouldCreateUserWithMinimalFields() {
+            User user = User.builder()
+                    .id(TEST_USER_ID)
+                    .email("test@example.com")
+                    .normalizedEmail("test@example.com")
+                    .displayName("User")
+                    .emailVerified(false)
+                    .status((short) 0)
+                    .createdAt(NOW)
+                    .updatedAt(NOW)
+                    .version(0)
+                    .build();
+
             assertNotNull(user);
-            assertEquals(roles, user.getRoles());
-        }
-        
-        @Test
-        @DisplayName("Should throw exception for null parameters")
-        void shouldThrowExceptionForNullParameters() {
-            assertThrows(NullPointerException.class, () -> User.create(null, Email.of("test@example.com"), "subject"));
-            assertThrows(NullPointerException.class, () -> User.create(UserId.generate(), null, "subject"));
-            assertThrows(NullPointerException.class, () -> User.create(UserId.generate(), Email.of("test@example.com"), null));
+            assertEquals(TEST_USER_ID, user.getId());
+            assertFalse(user.isEmailVerified());
         }
     }
 
     @Nested
-    @DisplayName("Status Management Tests")
-    class StatusManagementTests {
-        
-        @Test
-        @DisplayName("Should lock user account")
-        void shouldLockUserAccount() {
-            User user = createTestUser();
-            
-            user.lock();
-            
-            assertEquals(UserStatus.LOCKED, user.getStatus());
-            assertFalse(user.isActive());
-        }
-        
-        @Test
-        @DisplayName("Should unlock user account")
-        void shouldUnlockUserAccount() {
-            User user = createTestUser();
-            user.lock();
-            
-            user.unlock();
-            
-            assertEquals(UserStatus.ACTIVE, user.getStatus());
-            assertTrue(user.isActive());
-        }
-        
-        @Test
-        @DisplayName("Should check if user is active")
-        void shouldCheckIfUserIsActive() {
-            User user = createTestUser();
-            
-            assertTrue(user.isActive());
-            
-            user.lock();
-            assertFalse(user.isActive());
-        }
-    }
+    @DisplayName("Immutable Update Tests")
+    class ImmutableUpdateTests {
 
-    @Nested
-    @DisplayName("MFA Management Tests")
-    class MfaManagementTests {
-        
         @Test
-        @DisplayName("Should enable MFA")
-        void shouldEnableMfa() {
-            User user = createTestUser();
-            
-            user.enableMfa();
-            
-            assertTrue(user.isMfaEnabled());
-        }
-        
-        @Test
-        @DisplayName("Should check MFA status")
-        void shouldCheckMfaStatus() {
-            User user = createTestUser();
-            
-            assertFalse(user.isMfaEnabled());
-            
-            user.enableMfa();
-            assertTrue(user.isMfaEnabled());
-        }
-    }
+        @DisplayName("Should create new user instance with updated email")
+        void shouldCreateNewUserInstanceWithUpdatedEmail() {
+            User original = createTestUser();
+            String newEmail = "newemail@example.com";
 
-    @Nested
-    @DisplayName("Role Management Tests")
-    class RoleManagementTests {
-        
-        @Test
-        @DisplayName("Should check if user has specific role")
-        void shouldCheckIfUserHasSpecificRole() {
-            User user = createTestUser();
-            
-            assertTrue(user.hasRole(Role.USER));
-            assertFalse(user.hasRole(Role.ADMIN));
-        }
-        
-        @Test
-        @DisplayName("Should add role to user")
-        void shouldAddRoleToUser() {
-            User user = createTestUser();
-            
-            user.addRole(Role.CREATOR);
-            
-            assertTrue(user.hasRole(Role.CREATOR));
-            assertTrue(user.hasRole(Role.USER));
-        }
-        
-        @Test
-        @DisplayName("Should remove role from user")
-        void shouldRemoveRoleFromUser() {
-            User user = createTestUser();
-            user.addRole(Role.CREATOR);
-            
-            user.removeRole(Role.CREATOR);
-            
-            assertFalse(user.hasRole(Role.CREATOR));
-            assertTrue(user.hasRole(Role.USER));
-        }
-    }
+            User updated = original.withEmail(newEmail);
 
-    @Nested
-    @DisplayName("Login Tracking Tests")
-    class LoginTrackingTests {
-        
+            assertNotSame(original, updated);
+            assertEquals(newEmail, updated.getEmail());
+            assertEquals(original.getNormalizedEmail(), updated.getNormalizedEmail());
+            assertEquals(original.getId(), updated.getId());
+            assertNotEquals(original.getUpdatedAt(), updated.getUpdatedAt());
+        }
+
         @Test
-        @DisplayName("Should update last login timestamp")
-        void shouldUpdateLastLoginTimestamp() {
-            User user = createTestUser();
-            assertNull(user.getLastLoginAt());
-            
-            user.updateLastLogin();
-            
-            assertNotNull(user.getLastLoginAt());
-            assertTrue(user.getLastLoginAt().isBefore(Instant.now().plusSeconds(1)));
+        @DisplayName("Should create new user instance with updated display name")
+        void shouldCreateNewUserInstanceWithUpdatedDisplayName() {
+            User original = createTestUser();
+            String newDisplayName = "Updated Name";
+
+            User updated = original.withDisplayName(newDisplayName);
+
+            assertNotSame(original, updated);
+            assertEquals(newDisplayName, updated.getDisplayName());
+            assertEquals(original.getEmail(), updated.getEmail());
+            assertNotEquals(original.getUpdatedAt(), updated.getUpdatedAt());
+        }
+
+        @Test
+        @DisplayName("Should create new user instance with updated email verified status")
+        void shouldCreateNewUserInstanceWithUpdatedEmailVerified() {
+            User original = createTestUser();
+            assertTrue(original.isEmailVerified());
+
+            User updated = original.withEmailVerified(false);
+
+            assertNotSame(original, updated);
+            assertFalse(updated.isEmailVerified());
+            assertEquals(original.getEmail(), updated.getEmail());
+        }
+
+        @Test
+        @DisplayName("Should increment version when marking updated")
+        void shouldIncrementVersionWhenMarkingUpdated() {
+            User original = createTestUser();
+            long originalVersion = original.getVersion();
+
+            User updated = original.markUpdated();
+
+            assertNotSame(original, updated);
+            assertEquals(originalVersion + 1, updated.getVersion());
+            assertNotEquals(original.getUpdatedAt(), updated.getUpdatedAt());
         }
     }
 
     @Nested
     @DisplayName("Equality Tests")
     class EqualityTests {
-        
+
         @Test
         @DisplayName("Should be equal for same user ID")
         void shouldBeEqualForSameUserId() {
-            UserId userId = UserId.generate();
-            User user1 = User.create(userId, Email.of("test1@example.com"), "subject1");
-            User user2 = User.create(userId, Email.of("test2@example.com"), "subject2");
-            
+            User user1 = User.builder()
+                    .id(TEST_USER_ID)
+                    .email("test1@example.com")
+                    .normalizedEmail("test1@example.com")
+                    .displayName("User 1")
+                    .emailVerified(true)
+                    .status((short) 1)
+                    .createdAt(NOW)
+                    .updatedAt(NOW)
+                    .version(0)
+                    .build();
+
+            User user2 = User.builder()
+                    .id(TEST_USER_ID)
+                    .email("test2@example.com")
+                    .normalizedEmail("test2@example.com")
+                    .displayName("User 2")
+                    .emailVerified(false)
+                    .status((short) 0)
+                    .createdAt(NOW)
+                    .updatedAt(NOW)
+                    .version(1)
+                    .build();
+
             assertEquals(user1, user2);
             assertEquals(user1.hashCode(), user2.hashCode());
         }
-        
+
         @Test
         @DisplayName("Should not be equal for different user IDs")
         void shouldNotBeEqualForDifferentUserIds() {
             User user1 = createTestUser();
-            User user2 = createTestUser();
-            
+            User user2 = User.builder()
+                    .id(UserId.from("user-456"))
+                    .email("test@example.com")
+                    .normalizedEmail("test@example.com")
+                    .displayName("Test User")
+                    .emailVerified(true)
+                    .status((short) 1)
+                    .createdAt(NOW)
+                    .updatedAt(NOW)
+                    .version(0)
+                    .build();
+
             assertNotEquals(user1, user2);
         }
-        
+
         @Test
         @DisplayName("Should not be equal to null")
         void shouldNotBeEqualToString() {
             User user = createTestUser();
-            
+
             assertNotEquals(user, null);
             assertNotEquals(user, "string");
         }
     }
 
+    @Nested
+    @DisplayName("AggregateRoot Tests")
+    class AggregateRootTests {
+
+        @Test
+        @DisplayName("Should extend AggregateRoot with UserId")
+        void shouldExtendAggregateRootWithUserId() {
+            User user = createTestUser();
+
+            assertTrue(user instanceof com.youtube.common.domain.core.AggregateRoot);
+            assertEquals(TEST_USER_ID, user.getId());
+            assertNotNull(user.getVersion());
+        }
+
+        @Test
+        @DisplayName("Should track version for optimistic concurrency")
+        void shouldTrackVersionForOptimisticConcurrency() {
+            User user = createTestUser();
+            assertEquals(0, user.getVersion());
+
+            User updated = user.markUpdated();
+            assertEquals(1, updated.getVersion());
+        }
+    }
+
     private User createTestUser() {
-        return User.create(
-            UserId.generate(),
-            Email.of("test@example.com"),
-            "test-subject"
-        );
+        return User.builder()
+                .id(TEST_USER_ID)
+                .email("test@example.com")
+                .normalizedEmail("test@example.com")
+                .displayName("Test User")
+                .emailVerified(true)
+                .status((short) 1)
+                .createdAt(NOW)
+                .updatedAt(NOW)
+                .version(0)
+                .build();
     }
 }

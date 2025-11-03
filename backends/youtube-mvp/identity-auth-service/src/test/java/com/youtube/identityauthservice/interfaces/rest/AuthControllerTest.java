@@ -1,292 +1,203 @@
 package com.youtube.identityauthservice.interfaces.rest;
 
-import com.youtube.identityauthservice.application.usecases.ExchangeTokenUseCase;
-import com.youtube.identityauthservice.application.usecases.LoginUseCase;
-import com.youtube.identityauthservice.domain.entities.Jwks;
-import com.youtube.identityauthservice.domain.services.KeyVaultSigner;
-import com.youtube.identityauthservice.domain.valueobjects.TokenPair;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import com.youtube.identityauthservice.application.usecases.AuthUseCase;
+import com.youtube.identityauthservice.interfaces.rest.dto.AuthDtos;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.mock.web.MockHttpServletRequest;
-
-import java.time.Instant;
-import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/**
- * Test cases for AuthController.
- */
+@ExtendWith(MockitoExtension.class)
 @DisplayName("AuthController Tests")
 class AuthControllerTest {
 
-    private ExchangeTokenUseCase exchangeTokenUseCase;
-    private LoginUseCase loginUseCase;
-    private KeyVaultSigner keyVaultSigner;
-    private AuthController controller;
-    private MockHttpServletRequest mockRequest;
+    @Mock
+    private AuthUseCase authUseCase;
 
-    @BeforeEach
-    void setUp() {
-        exchangeTokenUseCase = mock(ExchangeTokenUseCase.class);
-        loginUseCase = mock(LoginUseCase.class);
-        keyVaultSigner = mock(KeyVaultSigner.class);
-        
-        controller = new AuthController(exchangeTokenUseCase, loginUseCase, keyVaultSigner);
-        
-        mockRequest = new MockHttpServletRequest();
-        mockRequest.setRemoteAddr("192.168.1.1");
-        mockRequest.addHeader("User-Agent", "Mozilla/5.0");
-        mockRequest.addHeader("X-Device-Id", "device-123");
-    }
+    @InjectMocks
+    private AuthController controller;
 
     @Nested
-    @DisplayName("Token Exchange Tests")
-    class TokenExchangeTests {
-        
+    @DisplayName("Exchange Token Tests")
+    class ExchangeTokenTests {
+
         @Test
         @DisplayName("Should exchange token successfully")
         void shouldExchangeTokenSuccessfully() {
             // Given
-            ExchangeRequest request = new ExchangeRequest("valid-id-token");
-            TokenPair tokenPair = TokenPair.of(
-                "access-token",
-                "refresh-token",
-                Instant.now().plusSeconds(3600)
+            AuthDtos.ExchangeRequest request = new AuthDtos.ExchangeRequest(
+                    "valid-id-token",
+                    "device-123",
+                    "Mozilla/5.0",
+                    "192.168.1.1",
+                    "openid profile"
             );
-            
-            when(exchangeTokenUseCase.execute(anyString(), any()))
-                .thenReturn(tokenPair);
-            
+
+            AuthUseCase.TokenResponse tokenResponse = new AuthUseCase.TokenResponse(
+                    "access-token-123",
+                    "refresh-token-456",
+                    "Bearer",
+                    3600L,
+                    "openid profile"
+            );
+
+            when(authUseCase.exchangeToken(any())).thenReturn(tokenResponse);
+
             // When
-            ResponseEntity<TokenResponse> response = controller.exchange(request, mockRequest);
-            
+            AuthDtos.TokenResponse response = controller.exchange(request);
+
             // Then
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertEquals("access-token", response.getBody().getAccessToken());
-            assertEquals("refresh-token", response.getBody().getRefreshToken());
-            assertTrue(response.getBody().getExpiresIn() > 0);
-            
-            verify(exchangeTokenUseCase).execute(eq("valid-id-token"), any());
+            assertNotNull(response);
+            assertEquals("access-token-123", response.accessToken());
+            assertEquals("refresh-token-456", response.refreshToken());
+            assertEquals("Bearer", response.tokenType());
+            assertEquals(3600L, response.expiresIn());
+            assertEquals("openid profile", response.scope());
+
+            verify(authUseCase).exchangeToken(argThat(cmd ->
+                    cmd.getIdToken().equals("valid-id-token") &&
+                    cmd.getDeviceId().equals("device-123") &&
+                    cmd.getUserAgent().equals("Mozilla/5.0") &&
+                    cmd.getIp().equals("192.168.1.1") &&
+                    cmd.getScope().equals("openid profile")
+            ));
         }
-        
+
         @Test
-        @DisplayName("Should return bad request for invalid request")
-        void shouldReturnBadRequestForInvalidRequest() {
+        @DisplayName("Should use default values for optional fields")
+        void shouldUseDefaultValuesForOptionalFields() {
             // Given
-            ExchangeRequest request = new ExchangeRequest(null);
-            
-            when(exchangeTokenUseCase.execute(anyString(), any()))
-                .thenThrow(new IllegalArgumentException("Invalid request"));
-            
+            AuthDtos.ExchangeRequest request = new AuthDtos.ExchangeRequest(
+                    "valid-id-token",
+                    null,
+                    null,
+                    null,
+                    null
+            );
+
+            AuthUseCase.TokenResponse tokenResponse = new AuthUseCase.TokenResponse(
+                    "access-token",
+                    "refresh-token",
+                    "Bearer",
+                    3600L,
+                    "openid profile offline_access"
+            );
+
+            when(authUseCase.exchangeToken(any())).thenReturn(tokenResponse);
+
             // When
-            ResponseEntity<TokenResponse> response = controller.exchange(request, mockRequest);
-            
+            AuthDtos.TokenResponse response = controller.exchange(request);
+
             // Then
-            assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        }
-        
-        @Test
-        @DisplayName("Should return unauthorized for security exception")
-        void shouldReturnUnauthorizedForSecurityException() {
-            // Given
-            ExchangeRequest request = new ExchangeRequest("invalid-token");
-            
-            when(exchangeTokenUseCase.execute(anyString(), any()))
-                .thenThrow(new SecurityException("Invalid token"));
-            
-            // When
-            ResponseEntity<TokenResponse> response = controller.exchange(request, mockRequest);
-            
-            // Then
-            assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-        }
-        
-        @Test
-        @DisplayName("Should return internal server error for unexpected exception")
-        void shouldReturnInternalServerErrorForUnexpectedException() {
-            // Given
-            ExchangeRequest request = new ExchangeRequest("valid-token");
-            
-            when(exchangeTokenUseCase.execute(anyString(), any()))
-                .thenThrow(new RuntimeException("Unexpected error"));
-            
-            // When
-            ResponseEntity<TokenResponse> response = controller.exchange(request, mockRequest);
-            
-            // Then
-            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+            assertNotNull(response);
+            verify(authUseCase).exchangeToken(argThat(cmd ->
+                    cmd.getIdToken().equals("valid-id-token") &&
+                    cmd.getDeviceId() == null &&
+                    cmd.getUserAgent() == null &&
+                    cmd.getIp() == null &&
+                    cmd.getScope() == null
+            ));
         }
     }
 
     @Nested
-    @DisplayName("Login Tests")
-    class LoginTests {
-        
+    @DisplayName("Refresh Token Tests")
+    class RefreshTokenTests {
+
         @Test
-        @DisplayName("Should login successfully")
-        void shouldLoginSuccessfully() {
+        @DisplayName("Should refresh token successfully")
+        void shouldRefreshTokenSuccessfully() {
             // Given
-            LoginRequest request = new LoginRequest("test@example.com", "password123");
-            TokenPair tokenPair = TokenPair.of(
-                "access-token",
-                "refresh-token",
-                Instant.now().plusSeconds(3600)
+            AuthDtos.RefreshRequest request = new AuthDtos.RefreshRequest(
+                    "valid-refresh-token",
+                    "openid profile"
             );
-            
-            when(loginUseCase.login(any(), any(), any()))
-                .thenReturn(tokenPair);
-            
+
+            AuthUseCase.TokenResponse tokenResponse = new AuthUseCase.TokenResponse(
+                    "new-access-token",
+                    "new-refresh-token",
+                    "Bearer",
+                    3600L,
+                    "openid profile"
+            );
+
+            when(authUseCase.refreshToken(any())).thenReturn(tokenResponse);
+
             // When
-            ResponseEntity<TokenResponse> response = controller.login(request, mockRequest);
-            
+            AuthDtos.TokenResponse response = controller.refresh(request);
+
             // Then
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertEquals("access-token", response.getBody().getAccessToken());
-            assertEquals("refresh-token", response.getBody().getRefreshToken());
-            
-            verify(loginUseCase).login(any(), any(), any());
+            assertNotNull(response);
+            assertEquals("new-access-token", response.accessToken());
+            assertEquals("new-refresh-token", response.refreshToken());
+
+            verify(authUseCase).refreshToken(argThat(cmd ->
+                    cmd.getRefreshToken().equals("valid-refresh-token") &&
+                    cmd.getScope().equals("openid profile")
+            ));
         }
-        
+
         @Test
-        @DisplayName("Should return unauthorized for invalid credentials")
-        void shouldReturnUnauthorizedForInvalidCredentials() {
+        @DisplayName("Should use default scope when not provided")
+        void shouldUseDefaultScopeWhenNotProvided() {
             // Given
-            LoginRequest request = new LoginRequest("test@example.com", "wrong-password");
-            
-            when(loginUseCase.login(any(), any(), any()))
-                .thenThrow(new SecurityException("Invalid credentials"));
-            
+            AuthDtos.RefreshRequest request = new AuthDtos.RefreshRequest(
+                    "valid-refresh-token",
+                    null
+            );
+
+            AuthUseCase.TokenResponse tokenResponse = new AuthUseCase.TokenResponse(
+                    "access-token",
+                    "refresh-token",
+                    "Bearer",
+                    3600L,
+                    "openid profile offline_access"
+            );
+
+            when(authUseCase.refreshToken(any())).thenReturn(tokenResponse);
+
             // When
-            ResponseEntity<TokenResponse> response = controller.login(request, mockRequest);
-            
+            AuthDtos.TokenResponse response = controller.refresh(request);
+
             // Then
-            assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+            assertNotNull(response);
+            verify(authUseCase).refreshToken(argThat(cmd ->
+                    cmd.getRefreshToken().equals("valid-refresh-token") &&
+                    cmd.getScope() == null
+            ));
         }
     }
 
     @Nested
-    @DisplayName("JWKS Tests")
-    class JwksTests {
-        
-        @Test
-        @DisplayName("Should return JWKS successfully")
-        void shouldReturnJwksSuccessfully() {
-            // Given
-            Jwks jwks = Jwks.of(List.of(Map.of(
-                "kty", "RSA",
-                "kid", "key-1",
-                "use", "sig"
-            )));
-            
-            when(keyVaultSigner.getJwks()).thenReturn(jwks);
-            
-            // When
-            ResponseEntity<Jwks> response = controller.getJwks();
-            
-            // Then
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertEquals(jwks, response.getBody());
-            
-            verify(keyVaultSigner).getJwks();
-        }
-        
-        @Test
-        @DisplayName("Should return internal server error for JWKS failure")
-        void shouldReturnInternalServerErrorForJwksFailure() {
-            // Given
-            when(keyVaultSigner.getJwks())
-                .thenThrow(new RuntimeException("JWKS error"));
-            
-            // When
-            ResponseEntity<Jwks> response = controller.getJwks();
-            
-            // Then
-            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        }
-    }
+    @DisplayName("Logout Tests")
+    class LogoutTests {
 
-    @Nested
-    @DisplayName("Health Check Tests")
-    class HealthCheckTests {
-        
         @Test
-        @DisplayName("Should return health status")
-        void shouldReturnHealthStatus() {
-            // When
-            ResponseEntity<String> response = controller.health();
-            
-            // Then
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertEquals("OK", response.getBody());
-        }
-    }
+        @DisplayName("Should logout successfully")
+        void shouldLogoutSuccessfully() {
+            // Given
+            AuthDtos.LogoutRequest request = new AuthDtos.LogoutRequest("refresh-token-to-revoke");
 
-    @Nested
-    @DisplayName("Client Info Extraction Tests")
-    class ClientInfoExtractionTests {
-        
-        @Test
-        @DisplayName("Should extract client info from request")
-        void shouldExtractClientInfoFromRequest() {
-            // Given
-            MockHttpServletRequest request = new MockHttpServletRequest();
-            request.setRemoteAddr("10.0.0.1");
-            request.addHeader("User-Agent", "Test-Agent");
-            request.addHeader("X-Device-Id", "test-device");
-            
-            ExchangeRequest exchangeRequest = new ExchangeRequest("token");
-            TokenPair tokenPair = TokenPair.of(
-                "access-token",
-                "refresh-token",
-                Instant.now().plusSeconds(3600)
-            );
-            
-            when(exchangeTokenUseCase.execute(anyString(), any()))
-                .thenReturn(tokenPair);
-            
+            doNothing().when(authUseCase).revokeSession(any());
+
             // When
-            ResponseEntity<TokenResponse> response = controller.exchange(exchangeRequest, request);
-            
+            Map<String, Object> response = controller.logout(request);
+
             // Then
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            verify(exchangeTokenUseCase).execute(eq("token"), any());
-        }
-        
-        @Test
-        @DisplayName("Should handle missing headers gracefully")
-        void shouldHandleMissingHeadersGracefully() {
-            // Given
-            MockHttpServletRequest request = new MockHttpServletRequest();
-            request.setRemoteAddr("10.0.0.1");
-            // No User-Agent or X-Device-Id headers
-            
-            ExchangeRequest exchangeRequest = new ExchangeRequest("token");
-            TokenPair tokenPair = TokenPair.of(
-                "access-token",
-                "refresh-token",
-                Instant.now().plusSeconds(3600)
-            );
-            
-            when(exchangeTokenUseCase.execute(anyString(), any()))
-                .thenReturn(tokenPair);
-            
-            // When
-            ResponseEntity<TokenResponse> response = controller.exchange(exchangeRequest, request);
-            
-            // Then
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            verify(exchangeTokenUseCase).execute(eq("token"), any());
+            assertNotNull(response);
+            assertTrue((Boolean) response.get("ok"));
+
+            verify(authUseCase).revokeSession(argThat(cmd ->
+                    cmd.getRefreshToken().equals("refresh-token-to-revoke")
+            ));
         }
     }
 }

@@ -3,6 +3,7 @@ package com.youtube.common.domain.error;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
@@ -31,7 +32,7 @@ import java.util.stream.Collectors;
  * }
  * }</pre>
  */
-@RestControllerAdvice
+@ConditionalOnMissingBean(GlobalExceptionHandler.class)
 public class GlobalExceptionHandler {
     
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);

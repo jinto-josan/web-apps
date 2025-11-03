@@ -1,0 +1,49 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/testdb
+    username: test
+    password: test
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        default_schema: auth
+        create_namespaces: true
+  flyway:
+    enabled: false
+  redis:
+    host: localhost
+    port: 6379
+
+app:
+  access-token-ttl-seconds: 3600
+  refresh-token-ttl-seconds: 86400
+  oidc:
+    enabled: false
+
+azure:
+  appconfig:
+    enabled: false
+
+# Domain Event Publisher Configuration (background service)
+outbox:
+  domain-event-publisher:
+    enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.youtube.identityauthservice: DEBUG
+
+management:
+  tracing:
+    enabled: false
+  metrics:
+    export:
+      prometheus:
+        enabled: false
+

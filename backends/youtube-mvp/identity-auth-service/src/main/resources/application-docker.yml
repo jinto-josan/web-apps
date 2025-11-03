@@ -45,17 +45,21 @@ app:
         discoveryUrl: https://login.microsoftonline.com/29e37b86-b53e-4bc1-8bf5-90f4a05204b2/v2.0/.well-known/openid-configuration
         audiences:
           - api://5b3ef65b-9c29-47a9-8d5b-f2032ee3e8e7
-  servicebus:
-    # one of:
-#    connectionString: Endpoint=sb://my-ns.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=...
-    managedIdentity: true
-    fullyQualifiedNamespace: output-event.servicebus.windows.net
-    useTopic: true
-    topicName: identity-events
-    enabled: true
-
-    outbox:
-      dispatch-interval-ms: 2000
+# Domain Event Publisher Configuration (background service)
+outbox:
+  domain-event-publisher:
+    # Enable/disable the domain event publisher
+    enabled: ${OUTBOX_DOMAIN_EVENT_PUBLISHER_ENABLED:true}
+    # Polling interval in milliseconds
+    interval: ${OUTBOX_DOMAIN_EVENT_PUBLISHER_INTERVAL:2000}
+    # Backend configuration (Azure Service Bus)
+    backend:
+      # Connection string or managed identity can be used
+      # connection-string: Endpoint=sb://my-ns.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=...
+      fully-qualified-namespace: ${AZURE_SERVICEBUS_NAMESPACE:output-event.servicebus.windows.net}
+      use-topic: ${AZURE_SERVICEBUS_USE_TOPIC:true}
+      topic-name: ${AZURE_SERVICEBUS_TOPIC_NAME:identity-events}
+      queue-name: ${AZURE_SERVICEBUS_QUEUE_NAME:}
 
 management:
   endpoints:

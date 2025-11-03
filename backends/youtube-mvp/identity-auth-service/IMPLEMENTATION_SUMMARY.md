@@ -115,7 +115,7 @@ All domain events extend the `DomainEvent` base class:
 - `AppConfig.java` - Spring configuration for beans and services
 - `OidcProperties.java` - OIDC provider configuration
 - `SigningConfig.java` - JWT signing configuration
-- `ServiceBusConfig.java` - Azure Service Bus configuration
+- `DomainEventPublisherConfig` - Moved to common-domain (background service for publishing domain events)
 
 ### Interface Layer
 
@@ -430,7 +430,10 @@ POST /auth/mfa/verify
 - `app.refresh-token-ttl-seconds` - Refresh token TTL
 - `app.oidc.providers` - OIDC provider configuration
 - `app.keyvault.*` - Azure Key Vault configuration
-- `app.servicebus.*` - Azure Service Bus configuration
+- `outbox.domain-event-publisher.*` - Domain event publisher configuration (background service)
+  - `outbox.domain-event-publisher.enabled` - Enable/disable domain event publisher
+  - `outbox.domain-event-publisher.interval` - Polling interval (ms)
+  - `outbox.domain-event-publisher.backend.*` - Backend configuration (Azure Service Bus)
 
 ## Summary
 

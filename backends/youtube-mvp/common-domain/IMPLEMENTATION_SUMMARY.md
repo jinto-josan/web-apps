@@ -43,19 +43,72 @@ All sequence diagrams have been fully implemented in the `common-domain-infrastr
 - `com.youtube.common.domain.core.IdGenerator`
 - `com.youtube.common.domain.core.Clock`
 
-### 3. Outbox Dispatcher to Azure Service Bus
+### 3. Outbox Dispatcher to Message Brokers
 
 **Components:**
 - **OutboxDispatcher** - Background worker that polls and dispatches outbox events
+- **MessagePublisher** - Abstraction interface for publishing events to message brokers
+- **ServiceBusMessagePublisher** - Azure Service Bus implementation of MessagePublisher
+- **DomainEventPublisherConfig** - Spring configuration for message publisher beans
+- **DomainEventPublisherProperties** - Configuration properties for broker settings
 
-**Location:** `com.youtube.common.domain.events.outbox.OutboxDispatcher`
+**Location:** 
+- `com.youtube.common.domain.events.outbox.OutboxDispatcher`
+- `com.youtube.common.domain.events.outbox.MessagePublisher`
+- `com.youtube.common.domain.events.outbox.ServiceBusMessagePublisher`
+- `com.youtube.common.domain.events.outbox.DomainEventPublisherConfig`
+- `com.youtube.common.domain.events.outbox.DomainEventPublisherProperties`
+
+**Architecture:**
+The OutboxDispatcher uses the `MessagePublisher` interface abstraction, allowing it to work with different message brokers (Service Bus, Kafka, RabbitMQ, etc.) without being tightly coupled to a specific implementation. This makes it easy to switch between brokers or support multiple brokers in different environments.
+
+**Current Implementations:**
+- **Service Bus** (default) - `ServiceBusMessagePublisher` - Azure Service Bus topic/queue support
+- **Kafka** (sample) - `KafkaMessagePublisher` - Sample implementation showing how to add Kafka support
+
+**Configuration:**
+```yaml
+outbox:
+  domain-event-publisher:
+    enabled: true              # Enable/disable publisher
+    interval: 5000             # Polling interval (ms)
+    backend:
+      type: servicebus         # Broker type: "servicebus" (default), "kafka", etc.
+      # Service Bus specific:
+      connection-string: ...    # Or use managed identity
+      fully-qualified-namespace: ...
+      topic-name: domain-events
+      queue-name: ...           # Optional, for queues
+      use-topic: true          # true for topics, false for queues
+```
 
 **Features:**
 - Scheduled polling with configurable interval
 - Batch processing with SELECT ... FOR UPDATE SKIP LOCKED
-- Azure Service Bus integration
+- Generic MessagePublisher abstraction (broker-agnostic)
+- Azure Service Bus integration (default)
+- Kafka sample implementation
 - Distributed tracing support
 - Error handling and retry logic
+
+**Adding New Broker Implementations:**
+
+To add support for a new message broker (e.g., RabbitMQ, SQS):
+
+1. Implement the `MessagePublisher` interface:
+```java
+@Component
+@ConditionalOnProperty(name = "outbox.domain-event-publisher.backend.type", havingValue = "rabbitmq")
+public class RabbitMqMessagePublisher implements MessagePublisher {
+    // Implementation
+}
+```
+
+2. Configure properties and create broker-specific client beans
+3. The OutboxDispatcher will automatically use your implementation when configured
+
+**Kafka Sample:**
+See `com.youtube.common.domain.events.outbox.KafkaMessagePublisher` for a complete commented example showing how to implement Kafka support.
 
 ### 4. Event Consumption with Inbox Idempotency
 
@@ -179,9 +232,14 @@ Common-domain uses Spring Boot auto-configuration for web components:
 - `RedisHttpIdempotencyRepository` - Auto-configured when Redis available and no JPA adapter
 
 **Configuration Properties:**
-- `azure.servicebus.connection-string` - Service Bus connection string
-- `azure.servicebus.topic-name` - Topic name (default: domain-events)
-- `outbox.dispatcher.interval` - Outbox polling interval in ms (default: 5000)
+- `outbox.domain-event-publisher.enabled` - Enable/disable publisher (default: true)
+- `outbox.domain-event-publisher.interval` - Outbox polling interval in ms (default: 5000)
+- `outbox.domain-event-publisher.backend.type` - Broker type: "servicebus" (default), "kafka", etc.
+- `outbox.domain-event-publisher.backend.connection-string` - Service Bus connection string (optional)
+- `outbox.domain-event-publisher.backend.fully-qualified-namespace` - Service Bus namespace for managed identity (optional)
+- `outbox.domain-event-publisher.backend.topic-name` - Topic name for publishing events
+- `outbox.domain-event-publisher.backend.queue-name` - Queue name (Service Bus only, optional)
+- `outbox.domain-event-publisher.backend.use-topic` - Use topic (true) or queue (false) for Service Bus (default: true)
 
 ## Usage Examples
 

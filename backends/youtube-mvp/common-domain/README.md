@@ -57,24 +57,30 @@ The following sequence diagrams illustrate the key patterns and flows implemente
 6. Events are stored in outbox within the same transaction
 7. Transaction commits ensuring consistency
 
-### 2. Outbox Dispatcher to Azure Service Bus
+### 2. Outbox Dispatcher to Message Brokers
 
 ![Outbox Dispatcher to Azure Service Bus](sequence-diagrams/Common-Domain%20-%20Outbox%20Dispatcher%20to%20Azure%20Service%20Bus.png)
 
-**Purpose**: Shows how outbox messages are reliably dispatched to Azure Service Bus.
+**Purpose**: Shows how outbox messages are reliably dispatched to message brokers (Service Bus, Kafka, etc.) using a generic `MessagePublisher` abstraction.
 
 **Key Components**:
 - Outbox Dispatcher (background worker)
+- MessagePublisher - Abstraction interface for broker implementations
+- ServiceBusMessagePublisher - Azure Service Bus implementation
+- KafkaMessagePublisher - Kafka implementation (sample)
 - Outbox Repository
-- Azure Service Bus Topic
+- Message Broker (Azure Service Bus, Kafka, etc.)
 - Tracing for observability
 
 **Flow**:
 1. Dispatcher polls for pending outbox messages
 2. Uses `SELECT ... FOR UPDATE SKIP LOCKED` for concurrent processing
-3. Publishes each event to Azure Service Bus
+3. Publishes each event via MessagePublisher abstraction
 4. Updates outbox status with broker message ID
 5. Handles failures and retries
+
+**Architecture**:
+The OutboxDispatcher is broker-agnostic through the `MessagePublisher` interface. This allows switching between Service Bus, Kafka, RabbitMQ, or any other message broker without changing the dispatcher code. Simply provide a different `MessagePublisher` implementation.
 
 ### 3. Event Consumption with Inbox Idempotency
 
@@ -359,14 +365,40 @@ spring:
     password: ${REDIS_PASSWORD}
 ```
 
-### Azure Service Bus Configuration
+### Domain Event Publisher Configuration
 
+**Service Bus (default):**
 ```yaml
-azure:
-  servicebus:
-    connection-string: ${SERVICEBUS_CONNECTION_STRING}
-    topic-name: domain-events
+outbox:
+  domain-event-publisher:
+    enabled: true
+    interval: 5000
+    backend:
+      type: servicebus
+      connection-string: ${SERVICEBUS_CONNECTION_STRING}
+      # Or use managed identity:
+      fully-qualified-namespace: ${SERVICEBUS_NAMESPACE}
+      topic-name: domain-events
+      use-topic: true  # true for topics, false for queues
 ```
+
+**Kafka (sample implementation):**
+```yaml
+outbox:
+  domain-event-publisher:
+    enabled: true
+    interval: 5000
+    backend:
+      type: kafka
+      bootstrap-servers: localhost:9092
+      topic-name: domain-events
+```
+
+**Note**: To use Kafka, you'll need to:
+1. Add Kafka dependencies to your service's `pom.xml`
+2. Create a `KafkaProducer` bean configuration
+3. Register `KafkaMessagePublisher` as a Spring bean
+4. See `KafkaMessagePublisher.java` in common-domain for detailed setup instructions
 
 ## Testing
 

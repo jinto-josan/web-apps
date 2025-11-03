@@ -61,3 +61,18 @@ springdoc:
     tagsSorter: alpha
     tryItOutEnabled: true
   packages-to-scan: com.youtube.identityauthservice.interfaces.rest
+
+# Domain Event Publisher Configuration (background service)
+outbox:
+  domain-event-publisher:
+    # Enable/disable the domain event publisher
+    enabled: ${OUTBOX_DOMAIN_EVENT_PUBLISHER_ENABLED:true}
+    # Polling interval in milliseconds
+    interval: ${OUTBOX_DOMAIN_EVENT_PUBLISHER_INTERVAL:5000}
+    # Backend configuration (Azure Service Bus)
+    backend:
+      connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING:}
+      fully-qualified-namespace: ${AZURE_SERVICEBUS_NAMESPACE:}
+      topic-name: ${AZURE_SERVICEBUS_TOPIC_NAME:}
+      queue-name: ${AZURE_SERVICEBUS_QUEUE_NAME:}
+      use-topic: ${AZURE_SERVICEBUS_USE_TOPIC:true}
