@@ -2,6 +2,7 @@ package com.youtube.common.domain.web;
 
 import com.youtube.common.domain.persistence.idempotency.HttpIdempotencyRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -14,6 +15,7 @@ import org.springframework.core.Ordered;
  * 
  * <p>Automatically configures IdempotencyFilter when:
  * - Running in a servlet-based web application
+ * - HttpIdempotencyRepository class is on classpath
  * - An HttpIdempotencyRepository bean is available (auto-configured by JPA or Redis)
  * </p>
  * 
@@ -22,6 +24,7 @@ import org.springframework.core.Ordered;
  */
 @Configuration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnClass(HttpIdempotencyRepository.class)
 @ConditionalOnBean(HttpIdempotencyRepository.class)
 public class IdempotencyFilterAutoConfiguration {
     

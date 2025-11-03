@@ -1,6 +1,7 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
 com.youtube.common.domain.web.CommonDomainWebAutoConfiguration,\
 com.youtube.common.domain.web.HttpClientConfig,\
+com.youtube.common.domain.web.WebClientAutoConfiguration,\
 com.youtube.common.domain.web.IdempotencyFilterAutoConfiguration,\
 com.youtube.common.domain.events.outbox.DomainEventPublisherConfig
 
