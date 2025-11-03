@@ -6,7 +6,13 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+/**
+ * JPA repository for HttpIdempotency entities in identity-auth-service.
+ * 
+ * <p>This is a Spring Data JPA repository used by the JPA adapter
+ * configured in IdempotencyConfig.</p>
+ */
 @Repository
-public interface HttpIdempotencyRepository extends JpaRepository<HttpIdempotencyEntity, Long> {
+public interface HttpIdempotencyJpaRepository extends JpaRepository<HttpIdempotencyEntity, Long> {
     Optional<HttpIdempotencyEntity> findByIdempotencyKeyAndRequestHash(String idempotencyKey, byte[] requestHash);
 }

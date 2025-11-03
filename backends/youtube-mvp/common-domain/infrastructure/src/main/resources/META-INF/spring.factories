@@ -1,0 +1,5 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.youtube.common.domain.web.CommonDomainWebAutoConfiguration,\
+com.youtube.common.domain.web.HttpClientConfig,\
+com.youtube.common.domain.web.IdempotencyFilterAutoConfiguration
+

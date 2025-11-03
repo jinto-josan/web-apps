@@ -28,7 +28,8 @@ The common-domain module contains reusable components that implement core DDD pa
 - **Transactional Outbox** - Ensures reliable event publishing
 - **Inbox Pattern** - Prevents duplicate event processing
 - **Optimistic Concurrency** - Handles concurrent modifications
-- **HTTP Idempotency** - Prevents duplicate API calls
+- **HTTP Idempotency** - Auto-configured filter prevents duplicate API calls
+- **Request Correlation** - Auto-configured filter tracks requests across services
 
 ## Sequence Diagrams
 
@@ -95,24 +96,25 @@ The following sequence diagrams illustrate the key patterns and flows implemente
 5. New domain events are stored in outbox
 6. Transaction commits and inbox is marked as processed
 
-### 4. HTTP Idempotency (Redis lock + SQL store)
+### 4. HTTP Idempotency Filter
 
 ![HTTP Idempotency](sequence-diagrams/Common-Domain%20-%20HTTP%20Idempotency%20(Redis%20lock%20+%20SQL%20store).png)
 
-**Purpose**: Demonstrates HTTP request idempotency using Redis locks and SQL storage.
+**Purpose**: Demonstrates HTTP request idempotency using auto-configured servlet filter.
 
 **Key Components**:
-- API Controller
-- Idempotency Service
-- Azure Cache for Redis
-- Azure SQL for result storage
+- IdempotencyFilter - Auto-configured servlet filter
+- HttpIdempotencyRepository - Unified repository interface
+- JpaHttpIdempotencyRepository / RedisHttpIdempotencyRepository - Storage implementations
+- Azure SQL Database / Azure Cache for Redis - Storage backends
 
 **Flow**:
 1. Client sends request with Idempotency-Key header
-2. Service checks for cached result in SQL
-3. If not cached, acquires Redis lock
-4. Processes request and stores result
-5. Releases lock and returns response
+2. Filter extracts header and computes request hash (method + URI + body)
+3. Filter checks repository for cached response
+4. If cached, returns stored response immediately
+5. If not cached, processes request and stores response
+6. Subsequent requests with same key return cached response
 
 ### 5. Correlation and Trace Context Propagation
 
@@ -121,17 +123,22 @@ The following sequence diagrams illustrate the key patterns and flows implemente
 **Purpose**: Shows how correlation IDs and trace context propagate through distributed systems.
 
 **Key Components**:
-- Trace Providers (producer and consumer)
-- Correlation Context
+- CorrelationFilter - Auto-configured servlet filter for incoming requests
+- HttpClientConfig - Auto-configuration for outbound HTTP clients
+- CorrelationExchangeFilterFunction - WebClient filter for correlation propagation
+- TraceProvider - Distributed tracing integration
+- CorrelationContext - Thread-local correlation context
 - Outbox Repository
 - Azure Service Bus
 
 **Flow**:
-1. HTTP request includes traceparent and correlation headers
-2. Producer starts span and sets correlation context
-3. Events are published with correlation metadata
-4. Consumer receives events and continues trace
-5. Correlation context is maintained across services
+1. HTTP request arrives with traceparent and correlation headers
+2. CorrelationFilter extracts headers and sets thread-local context
+3. TraceProvider starts/continues trace span
+4. Outbound HTTP requests (via RestTemplate/WebClient) automatically include correlation headers
+5. Events are published with correlation metadata
+6. Consumer receives events and continues trace
+7. Correlation context is maintained across services automatically
 
 ### 6. Optimistic Concurrency Control
 
@@ -199,8 +206,9 @@ The following sequence diagrams illustrate the key patterns and flows implemente
 - **HTTP Idempotency** - Prevents duplicate API operations
 
 ### Observability & Tracing
-- **Distributed Tracing** - End-to-end request tracing
-- **Correlation IDs** - Request correlation across services
+- **Distributed Tracing** - End-to-end request tracing (auto-configured)
+- **Correlation IDs** - Automatic request correlation across services (auto-configured)
+- **HTTP Client Propagation** - Automatic correlation/trace header propagation (auto-configured)
 - **Event Metadata** - Rich context for event processing
 - **Structured Logging** - Consistent logging patterns
 
@@ -265,6 +273,65 @@ public class CreateUserHandler {
         } catch (Exception e) {
             return Result.err(new DomainException("USER_CREATION_FAILED", e.getMessage()));
         }
+    }
+}
+```
+
+### HTTP Idempotency (Auto-Configured)
+
+For JPA-based services, create an adapter configuration:
+
+```java
+@Configuration
+public class IdempotencyConfig {
+    @Bean
+    public JpaHttpIdempotencyRepository.JpaIdempotencyRepositoryAdapter 
+            httpIdempotencyAdapter(HttpIdempotencyJpaRepository jpaRepository) {
+        return new JpaHttpIdempotencyRepository.JpaIdempotencyRepositoryAdapter() {
+            @Override
+            public Optional<HttpIdempotency> find(String key, byte[] hash) {
+                return jpaRepository.findByIdempotencyKeyAndRequestHash(key, hash)
+                    .map(e -> (HttpIdempotency) e);
+            }
+            
+            @Override
+            public HttpIdempotency save(HttpIdempotency entity) {
+                return jpaRepository.save((HttpIdempotencyEntity) entity);
+            }
+            
+            @Override
+            public HttpIdempotency create() {
+                return new HttpIdempotencyEntity();
+            }
+        };
+    }
+}
+```
+
+For Redis-based services, no configuration needed - just include `spring-boot-starter-data-redis`.
+
+### HTTP Client Usage (Auto-Configured)
+
+RestTemplate and WebClient automatically propagate correlation IDs:
+
+```java
+@Service
+public class ExternalServiceClient {
+    
+    private final RestTemplate restTemplate; // Auto-configured with correlation interceptor
+    private final WebClient webClient; // Built from auto-configured builder
+    
+    public void callExternalService() {
+        // Correlation ID and traceparent automatically added to headers
+        restTemplate.postForEntity("https://api.example.com/data", request, String.class);
+        
+        // WebClient also automatically includes correlation headers
+        webClient.post()
+            .uri("https://api.example.com/data")
+            .bodyValue(request)
+            .retrieve()
+            .toEntity(String.class)
+            .block();
     }
 }
 ```
@@ -345,7 +412,9 @@ class UserIntegrationTest {
 - **Event Processing Latency** - Time to process domain events
 - **Outbox Message Count** - Number of pending outbox messages
 - **Concurrency Conflicts** - Rate of optimistic concurrency failures
-- **Idempotency Hit Rate** - Percentage of duplicate requests
+- **Idempotency Hit Rate** - Percentage of duplicate requests (filter statistics)
+- **Correlation ID Propagation** - Success rate of correlation header propagation
+- **Trace Span Duration** - Distributed trace span durations across services
 
 ### Alerts
 
@@ -353,6 +422,8 @@ class UserIntegrationTest {
 - **Event Processing Failures** - Alert on event processing errors
 - **Database Connection Issues** - Alert on connection pool exhaustion
 - **Redis Connectivity** - Alert on cache connectivity issues
+- **Correlation Filter Errors** - Alert on correlation/trace context setup failures
+- **Idempotency Filter Errors** - Alert on idempotency processing failures
 
 ## Contributing
 

@@ -13,7 +13,7 @@ import com.youtube.identityauthservice.domain.repositories.SessionRepository;
 import com.youtube.identityauthservice.domain.services.EventPublisher;
 import com.youtube.identityauthservice.domain.valueobjects.RefreshTokenId;
 import com.youtube.identityauthservice.domain.valueobjects.SessionId;
-import com.youtube.identityauthservice.infrastructure.util.Hashing;
+import com.youtube.common.domain.utils.Hashing;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;

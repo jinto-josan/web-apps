@@ -76,34 +76,56 @@ All sequence diagrams have been fully implemented in the `common-domain-infrastr
 - Handler routing
 - Correlation context propagation
 
-### 5. HTTP Idempotency (Redis lock + SQL store)
+### 5. HTTP Idempotency Filter
 
 **Components:**
-- **IdempotencyService** - Handles HTTP request idempotency
+- **IdempotencyFilter** - Servlet filter for HTTP request idempotency
+- **HttpIdempotencyRepository** - Unified repository interface
+- **JpaHttpIdempotencyRepository** - JPA-based implementation (auto-configured)
+- **RedisHttpIdempotencyRepository** - Redis-based implementation (auto-configured)
+- **IdempotencyFilterAutoConfiguration** - Auto-configuration for filter
 
-**Location:** `com.youtube.common.domain.services.idempotency.IdempotencyService`
+**Location:**
+- `com.youtube.common.domain.web.IdempotencyFilter`
+- `com.youtube.common.domain.persistence.idempotency.HttpIdempotencyRepository`
+- `com.youtube.common.domain.persistence.idempotency.jpa.JpaHttpIdempotencyRepository`
+- `com.youtube.common.domain.persistence.idempotency.redis.RedisHttpIdempotencyRepository`
+- `com.youtube.common.domain.web.IdempotencyFilterAutoConfiguration`
 
 **Features:**
-- Redis-based distributed locking
-- SQL-based result storage
-- Request hash validation
-- Response caching
+- Auto-configured servlet filter for HTTP idempotency
+- Supports both JPA (database) and Redis storage backends
+- Request hash validation (method + URI + body)
+- Response caching and replay
+- Automatic detection of storage backend
+- Works with Idempotency-Key header (RFC draft standard)
 
 ### 6. Correlation and Trace Context Propagation
 
 **Components:**
 - **CorrelationContext** - Thread-local correlation context
 - **TraceProvider** - Distributed tracing integration
+- **CorrelationFilter** - Auto-configured servlet filter for correlation/tracing
+- **HttpClientConfig** - Auto-configuration for HTTP clients (RestTemplate/WebClient)
+- **CorrelationExchangeFilterFunction** - WebClient filter for correlation propagation
 
 **Location:**
 - `com.youtube.common.domain.services.correlation.CorrelationContext`
 - `com.youtube.common.domain.services.tracing.TraceProvider`
+- `com.youtube.common.domain.web.CorrelationFilter`
+- `com.youtube.common.domain.web.HttpClientConfig`
+- `com.youtube.common.domain.web.CorrelationExchangeFilterFunction`
+- `com.youtube.common.domain.web.CommonDomainWebAutoConfiguration`
 
 **Features:**
+- Auto-configured servlet filter extracts correlation/trace headers
 - W3C traceparent header support
-- Correlation ID propagation
+- Correlation ID propagation across services
 - Causation ID tracking
 - Thread-local context management
+- Automatic RestTemplate interceptor configuration
+- Automatic WebClient filter configuration
+- Zero-configuration setup for services
 
 ### 7. Optimistic Concurrency Control
 
@@ -142,7 +164,19 @@ All sequence diagrams have been fully implemented in the `common-domain-infrastr
 
 ## Configuration
 
-All services are configured via Spring Boot configuration in `CommonDomainConfiguration`.
+### Auto-Configuration
+
+Common-domain uses Spring Boot auto-configuration for web components:
+
+**Web Components Auto-Configured:**
+- `CorrelationFilter` - Automatically registered as servlet filter (runs first)
+- `IdempotencyFilter` - Automatically registered when repository bean exists
+- `RestTemplate` - Auto-configured with correlation ID interceptor
+- `WebClient.Builder` - Auto-configured with correlation ID filter function
+
+**Repository Auto-Configuration:**
+- `JpaHttpIdempotencyRepository` - Auto-configured when JPA adapter bean exists
+- `RedisHttpIdempotencyRepository` - Auto-configured when Redis available and no JPA adapter
 
 **Configuration Properties:**
 - `azure.servicebus.connection-string` - Service Bus connection string
@@ -212,55 +246,76 @@ public class UserEventHandler implements EventRouter.EventHandler<UserCreatedEve
 }
 ```
 
-### HTTP Idempotency
+### HTTP Idempotency (Auto-Configured Filter)
 
+The idempotency filter is automatically configured and doesn't require manual handling in controllers.
+
+**For JPA-based services:**
+
+1. Extend HttpIdempotency entity:
 ```java
-import com.youtube.common.domain.services.idempotency.IdempotencyService;
+@Entity
+@Table(name = "http_idempotency", schema = "auth")
+public class HttpIdempotencyEntity extends HttpIdempotency {}
+```
 
+2. Create JPA repository:
+```java
+@Repository
+public interface HttpIdempotencyJpaRepository 
+    extends JpaRepository<HttpIdempotencyEntity, Long> {
+    Optional<HttpIdempotencyEntity> findByIdempotencyKeyAndRequestHash(
+        String key, byte[] hash);
+}
+```
+
+3. Create adapter bean:
+```java
+@Configuration
+public class IdempotencyConfig {
+    @Bean
+    public JpaHttpIdempotencyRepository.JpaIdempotencyRepositoryAdapter 
+            httpIdempotencyAdapter(HttpIdempotencyJpaRepository jpaRepository) {
+        return new JpaHttpIdempotencyRepository.JpaIdempotencyRepositoryAdapter() {
+            @Override
+            public Optional<HttpIdempotency> find(String key, byte[] hash) {
+                return jpaRepository.findByIdempotencyKeyAndRequestHash(key, hash)
+                    .map(entity -> (HttpIdempotency) entity);
+            }
+            
+            @Override
+            public HttpIdempotency save(HttpIdempotency entity) {
+                return jpaRepository.save((HttpIdempotencyEntity) entity);
+            }
+            
+            @Override
+            public HttpIdempotency create() {
+                return new HttpIdempotencyEntity();
+            }
+        };
+    }
+}
+```
+
+**For Redis-based services:**
+- Just include `spring-boot-starter-data-redis`
+- Redis implementation auto-configures automatically
+- No additional configuration needed
+
+**Controller usage:**
+```java
 @RestController
 public class PaymentController {
     
     @PostMapping("/payments")
-    public ResponseEntity<?> createPayment(
+    public ResponseEntity<PaymentResponse> createPayment(
         @RequestHeader("Idempotency-Key") String idempotencyKey,
         @RequestBody PaymentRequest request
     ) {
-        // Compute request hash
-        byte[] requestHash = IdempotencyService.computeRequestHash(
-            "POST", "/payments", request.getBytes()
-        );
-        
-        // Check for cached result
-        Optional<IdempotencyService.StoredResponse> cached = idempotencyService.getStoredResult(
-            idempotencyKey, requestHash
-        );
-        
-        if (cached.isPresent()) {
-            return ResponseEntity.status(cached.get().status())
-                .body(cached.get().body());
-        }
-        
-        // Acquire lock
-        if (!idempotencyService.acquireLock(idempotencyKey)) {
-            return ResponseEntity.status(409).build(); // Conflict
-        }
-        
-        try {
-            // Process request
-            PaymentResponse response = paymentService.create(request);
-            
-            // Store result
-            idempotencyService.storeResult(
-                idempotencyKey,
-                requestHash,
-                201,
-                serializeResponse(response)
-            );
-            
-            return ResponseEntity.status(201).body(response);
-        } finally {
-            idempotencyService.releaseLock(idempotencyKey);
-        }
+        // Filter automatically handles idempotency
+        // Same request with same key returns cached response
+        PaymentResponse response = paymentService.create(request);
+        return ResponseEntity.status(201).body(response);
     }
 }
 ```
@@ -314,6 +369,24 @@ Components are designed to be testable with:
 ## Next Steps
 
 Services should:
+
+**For HTTP Idempotency (JPA):**
+1. Extend `HttpIdempotency` with service-specific entity
+2. Create JPA repository interface with `findByIdempotencyKeyAndRequestHash` method
+3. Create adapter bean in configuration class
+4. Filter automatically activates and handles idempotency
+
+**For HTTP Idempotency (Redis):**
+1. Include `spring-boot-starter-data-redis` dependency
+2. Redis implementation auto-configures automatically
+3. Filter automatically activates
+
+**For Correlation/Tracing:**
+1. No configuration needed - filters auto-configure
+2. HTTP clients (RestTemplate/WebClient) automatically propagate correlation IDs
+3. Ensure `TraceProvider` bean exists (auto-configured if Micrometer Tracing is present)
+
+**General Setup:**
 1. Extend entity classes (OutboxEvent, InboxMessage, HttpIdempotency)
 2. Implement repository interfaces
 3. Register event handlers with EventRouter
@@ -323,8 +396,9 @@ Services should:
    - Core DDD: `com.youtube.common.domain.core.*`
    - Events: `com.youtube.common.domain.events.*`
    - Services: `com.youtube.common.domain.services.*`
-   - Repository: `com.youtube.common.domain.repository.*`
+   - Web: `com.youtube.common.domain.web.*`
    - Persistence: `com.youtube.common.domain.persistence.*`
+   - Utils: `com.youtube.common.domain.utils.*`
 
 ## Package Structure
 
@@ -339,11 +413,22 @@ com.youtube.common.domain/
 ├── services/                # Infrastructure services
 │   ├── correlation/        # Request correlation
 │   ├── tracing/            # Distributed tracing
-│   ├── idempotency/       # HTTP idempotency
+│   ├── idempotency/       # HTTP idempotency (legacy service)
 │   └── tenant/            # Multi-tenancy
 ├── persistence/            # Persistence layer
 │   ├── entity/            # JPA entity base classes
-│   └── repository/        # Repository implementations
+│   ├── repository/        # Repository implementations
+│   └── idempotency/       # HTTP idempotency repositories
+│       ├── jpa/           # JPA implementation
+│       └── redis/         # Redis implementation
+├── web/                    # Web components
+│   ├── CorrelationFilter              # Correlation/tracing filter
+│   ├── IdempotencyFilter              # HTTP idempotency filter
+│   ├── HttpClientConfig               # HTTP client auto-config
+│   ├── CorrelationExchangeFilterFunction  # WebClient filter
+│   └── *AutoConfiguration            # Auto-configuration classes
+├── utils/                  # Utility classes
+│   └── Hashing            # Cryptographic hashing utilities
 ├── repository/             # Repository interfaces (ports)
 └── config/                 # Configuration
 ```
