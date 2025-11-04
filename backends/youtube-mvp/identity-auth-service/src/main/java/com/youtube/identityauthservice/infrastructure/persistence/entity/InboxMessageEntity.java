@@ -10,7 +10,7 @@ import lombok.Setter;
  * Extends common-domain InboxMessage with service-specific table configuration.
  */
 @Entity
-@Table(name = "inbox_messages", schema = "auth")
+@Table(name = "inbox_messages")
 @Getter
 @Setter
 public class InboxMessageEntity extends InboxMessage {

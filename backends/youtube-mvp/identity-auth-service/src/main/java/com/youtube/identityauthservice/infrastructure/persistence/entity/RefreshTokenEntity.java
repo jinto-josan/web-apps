@@ -11,11 +11,15 @@ import java.time.Instant;
  * Maps domain RefreshToken entity to database table.
  */
 @Entity
-@Table(name = "refresh_tokens", schema = "auth",
+@Table(name = "refresh_tokens",
         indexes = {
-                @Index(name = "ix_auth_rt_session", columnList = "session_id, created_at DESC"),
-                @Index(name = "ix_auth_rt_expires", columnList = "expires_at"),
-                @Index(name = "ix_auth_rt_revoked", columnList = "revoked_at")
+                @Index(name = "ix_rt_session", columnList = "session_id, created_at DESC"),
+                @Index(name = "ix_rt_expires", columnList = "expires_at"),
+                @Index(name = "ix_rt_revoked", columnList = "revoked_at")
+        },
+        uniqueConstraints = {
+                @UniqueConstraint(name = "ux_rt_token_hash", columnNames = "token_hash"),
+                @UniqueConstraint(name = "ux_rt_replaced_by", columnNames = "replaced_by_token_id")
         }
 )
 @Getter

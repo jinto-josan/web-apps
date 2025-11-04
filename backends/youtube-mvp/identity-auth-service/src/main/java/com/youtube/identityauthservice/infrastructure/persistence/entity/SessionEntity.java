@@ -11,10 +11,13 @@ import java.time.Instant;
  * Maps domain Session entity to database table.
  */
 @Entity
-@Table(name = "sessions", schema = "auth",
+@Table(name = "sessions",
         indexes = {
-                @Index(name = "ix_auth_sessions_user_created", columnList = "user_id, created_at DESC"),
-                @Index(name = "ix_auth_sessions_revoked_at", columnList = "revoked_at")
+                @Index(name = "ix_sessions_user_created", columnList = "user_id, created_at DESC"),
+                @Index(name = "ix_sessions_revoked_at", columnList = "revoked_at")
+        },
+        uniqueConstraints = {
+                @UniqueConstraint(name = "ux_sessions_jti", columnNames = "jti")
         }
 )
 @Getter

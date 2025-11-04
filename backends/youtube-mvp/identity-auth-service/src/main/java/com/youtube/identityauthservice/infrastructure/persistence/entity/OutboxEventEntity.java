@@ -10,8 +10,8 @@ import lombok.Setter;
  * Extends common-domain OutboxEvent with service-specific table configuration.
  */
 @Entity
-@Table(name = "outbox_events", schema = "auth",
-        indexes = { @Index(name = "ix_auth_outbox_not_dispatched", columnList = "created_at") }
+@Table(name = "outbox_events",
+        indexes = { @Index(name = "ix_outbox_not_dispatched", columnList = "created_at") }
 )
 @Getter
 @Setter

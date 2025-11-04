@@ -70,7 +70,7 @@ public abstract class OutboxEvent {
      * JSON payload containing the event data.
      */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "payload_json", nullable = false, updatable = false)
+    @Column(name = "payload_json", nullable = false, updatable = false, columnDefinition = "jsonb")
     private String payloadJson;
 
     /**

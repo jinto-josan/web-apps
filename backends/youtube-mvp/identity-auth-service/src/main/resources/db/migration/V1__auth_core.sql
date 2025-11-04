@@ -1,6 +1,4 @@
-CREATE SCHEMA IF NOT EXISTS auth;  
-  
-CREATE TABLE IF NOT EXISTS auth.users (  
+CREATE TABLE IF NOT EXISTS users (  
   id                VARCHAR(26)        PRIMARY KEY,
   email             VARCHAR(320)    NOT NULL,  
   normalized_email  VARCHAR(320)    NOT NULL,  
@@ -15,15 +13,15 @@ CREATE TABLE IF NOT EXISTS auth.users (
   created_at        TIMESTAMPTZ     NOT NULL DEFAULT NOW(),  
   updated_at        TIMESTAMPTZ     NOT NULL DEFAULT NOW(),  
   version           INTEGER         NOT NULL DEFAULT 0,  
-  CONSTRAINT ck_auth_users_status CHECK (status BETWEEN 0 AND 3)  
+  CONSTRAINT ck_users_status CHECK (status BETWEEN 0 AND 3)  
 );  
-CREATE UNIQUE INDEX IF NOT EXISTS ux_auth_users_normalized_email ON auth.users (normalized_email);  
-CREATE INDEX IF NOT EXISTS ix_auth_users_status ON auth.users (status);  
-CREATE INDEX IF NOT EXISTS ix_auth_users_updated_at ON auth.users (updated_at);  
+CREATE UNIQUE INDEX IF NOT EXISTS ux_users_normalized_email ON users (normalized_email);  
+CREATE INDEX IF NOT EXISTS ix_users_status ON users (status);  
+CREATE INDEX IF NOT EXISTS ix_users_updated_at ON users (updated_at);  
   
-CREATE TABLE IF NOT EXISTS auth.sessions (  
+CREATE TABLE IF NOT EXISTS sessions (  
   id               VARCHAR(26)      PRIMARY KEY,
-  user_id          VARCHAR(26)      NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id          VARCHAR(26)      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   jti              VARCHAR(64)   NOT NULL,  
   device_id        VARCHAR(64),  
   user_agent       VARCHAR(512),  
@@ -34,23 +32,23 @@ CREATE TABLE IF NOT EXISTS auth.sessions (
   mfa_verified_at  TIMESTAMPTZ,  
   version          INTEGER       NOT NULL DEFAULT 0  
 );  
-CREATE UNIQUE INDEX IF NOT EXISTS ux_auth_sessions_jti ON auth.sessions (jti);  
-CREATE INDEX IF NOT EXISTS ix_auth_sessions_user_created ON auth.sessions (user_id, created_at DESC);  
-CREATE INDEX IF NOT EXISTS ix_auth_sessions_revoked_at ON auth.sessions (revoked_at);  
+CREATE UNIQUE INDEX IF NOT EXISTS ux_sessions_jti ON sessions (jti);  
+CREATE INDEX IF NOT EXISTS ix_sessions_user_created ON sessions (user_id, created_at DESC);  
+CREATE INDEX IF NOT EXISTS ix_sessions_revoked_at ON sessions (revoked_at);  
   
-CREATE TABLE IF NOT EXISTS auth.refresh_tokens (  
+CREATE TABLE IF NOT EXISTS refresh_tokens (  
   id                   VARCHAR(26)       PRIMARY KEY,
-  session_id           VARCHAR(26)       NOT NULL REFERENCES auth.sessions(id) ON DELETE CASCADE,
+  session_id           VARCHAR(26)       NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   token_hash           BYTEA          NOT NULL,  
   expires_at           TIMESTAMPTZ    NOT NULL,  
   replaced_by_token_id VARCHAR(26),
   revoked_at           TIMESTAMPTZ,  
   revoke_reason        VARCHAR(200),  
   created_at           TIMESTAMPTZ    NOT NULL DEFAULT NOW(),  
-  CONSTRAINT fk_auth_rt_replaced_by FOREIGN KEY (replaced_by_token_id) REFERENCES auth.refresh_tokens(id)  
+  CONSTRAINT fk_rt_replaced_by FOREIGN KEY (replaced_by_token_id) REFERENCES refresh_tokens(id)  
 );  
-CREATE UNIQUE INDEX IF NOT EXISTS ux_auth_rt_token_hash ON auth.refresh_tokens (token_hash);  
-CREATE INDEX IF NOT EXISTS ix_auth_rt_session ON auth.refresh_tokens (session_id, created_at DESC);  
-CREATE INDEX IF NOT EXISTS ix_auth_rt_expires ON auth.refresh_tokens (expires_at);  
-CREATE INDEX IF NOT EXISTS ix_auth_rt_revoked ON auth.refresh_tokens (revoked_at);  
-CREATE UNIQUE INDEX IF NOT EXISTS ux_auth_rt_replaced_by ON auth.refresh_tokens (replaced_by_token_id) WHERE replaced_by_token_id IS NOT NULL;  
+CREATE UNIQUE INDEX IF NOT EXISTS ux_rt_token_hash ON refresh_tokens (token_hash);  
+CREATE INDEX IF NOT EXISTS ix_rt_session ON refresh_tokens (session_id, created_at DESC);  
+CREATE INDEX IF NOT EXISTS ix_rt_expires ON refresh_tokens (expires_at);  
+CREATE INDEX IF NOT EXISTS ix_rt_revoked ON refresh_tokens (revoked_at);  
+CREATE UNIQUE INDEX IF NOT EXISTS ux_rt_replaced_by ON refresh_tokens (replaced_by_token_id) WHERE replaced_by_token_id IS NOT NULL;  

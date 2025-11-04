@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS auth.outbox_events (
+CREATE TABLE IF NOT EXISTS outbox_events (
   id                VARCHAR(26)     PRIMARY KEY,
   event_type        VARCHAR(200)   NOT NULL,
   aggregate_type    VARCHAR(100),
@@ -12,9 +12,9 @@ CREATE TABLE IF NOT EXISTS auth.outbox_events (
   broker_message_id VARCHAR(200),
   error             VARCHAR(4000)
 );
-CREATE INDEX IF NOT EXISTS ix_auth_outbox_not_dispatched ON auth.outbox_events (created_at) WHERE dispatched_at IS NULL;
+CREATE INDEX IF NOT EXISTS ix_outbox_not_dispatched ON outbox_events (created_at) WHERE dispatched_at IS NULL;
 
-CREATE TABLE IF NOT EXISTS auth.inbox_messages (
+CREATE TABLE IF NOT EXISTS inbox_messages (
   message_id      VARCHAR(128)  PRIMARY KEY,
   first_seen_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   processed_at    TIMESTAMPTZ,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS auth.inbox_messages (
 );
 
 -- Using surrogate primary key for JPA simplicity; unique composite for semantics
-CREATE TABLE IF NOT EXISTS auth.http_idempotency (
+CREATE TABLE IF NOT EXISTS http_idempotency (
   id              BIGSERIAL     PRIMARY KEY,
   idempotency_key VARCHAR(128)  NOT NULL,
   request_hash    BYTEA         NOT NULL,
@@ -32,6 +32,6 @@ CREATE TABLE IF NOT EXISTS auth.http_idempotency (
   response_body   BYTEA,
   created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  CONSTRAINT ux_auth_http_idem UNIQUE (idempotency_key, request_hash)
+  CONSTRAINT ux_http_idem UNIQUE (idempotency_key, request_hash)
 );
-CREATE INDEX IF NOT EXISTS ix_auth_http_idem_updated_at ON auth.http_idempotency (updated_at);
+CREATE INDEX IF NOT EXISTS ix_http_idem_updated_at ON http_idempotency (updated_at);

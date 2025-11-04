@@ -17,9 +17,6 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -35,7 +32,6 @@ class AuthIntegrationTest {
             .withDatabaseName("testdb")
             .withUsername("test")
             .withPassword("test")
-            .withInitScript("init-schema.sql");
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
@@ -43,8 +39,6 @@ class AuthIntegrationTest {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
-        registry.add("spring.jpa.properties.hibernate.default_schema", () -> "auth");
-        registry.add("spring.jpa.properties.hibernate.create_namespaces", () -> "true");
         registry.add("spring.flyway.enabled", () -> "false");
         registry.add("app.access-token-ttl-seconds", () -> "3600");
         registry.add("app.refresh-token-ttl-seconds", () -> "86400");
@@ -52,19 +46,6 @@ class AuthIntegrationTest {
         registry.add("azure.servicebus.enabled", () -> "false");
         registry.add("azure.appconfig.enabled", () -> "false");
         registry.add("azure.keyvault.enabled", () -> "false");
-    }
-
-    @Autowired
-    private DataSource dataSource;
-
-    @BeforeEach
-    void createSchema() {
-        try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
-            stmt.execute("CREATE SCHEMA IF NOT EXISTS auth");
-        } catch (Exception e) {
-            // Schema might already exist, ignore
-        }
     }
 
     @Autowired

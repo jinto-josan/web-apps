@@ -10,9 +10,9 @@ import lombok.Setter;
  * Extends common-domain HttpIdempotency with service-specific table configuration.
  */
 @Entity
-@Table(name = "http_idempotency", schema = "auth",
+@Table(name = "http_idempotency",
         uniqueConstraints = {
-                @UniqueConstraint(name = "ux_auth_http_idem", columnNames = {"idempotency_key", "request_hash"})
+                @UniqueConstraint(name = "ux_http_idem", columnNames = {"idempotency_key", "request_hash"})
         }
 )
 @Getter

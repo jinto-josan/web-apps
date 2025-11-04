@@ -12,13 +12,13 @@ import java.time.Instant;
  * Maps domain entity to database table.
  */
 @Entity
-@Table(name = "users", schema = "auth",
+@Table(name = "users",
         indexes = {
-                @Index(name = "ix_auth_users_status", columnList = "status"),
-                @Index(name = "ix_auth_users_updated_at", columnList = "updated_at")
+                @Index(name = "ix_users_status", columnList = "status"),
+                @Index(name = "ix_users_updated_at", columnList = "updated_at")
         },
         uniqueConstraints = {
-                @UniqueConstraint(name = "ux_auth_users_normalized_email", columnNames = "normalized_email")
+                @UniqueConstraint(name = "ux_users_normalized_email", columnNames = "normalized_email")
         }
 )
 @Getter
