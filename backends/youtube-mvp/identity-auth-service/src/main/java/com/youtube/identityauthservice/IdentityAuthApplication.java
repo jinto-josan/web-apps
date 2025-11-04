@@ -1,10 +1,11 @@
 package com.youtube.identityauthservice;
 
 import com.microsoft.applicationinsights.attach.ApplicationInsights;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
@@ -19,11 +20,27 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @ConfigurationPropertiesScan
 @EnableScheduling
 public class IdentityAuthApplication {
+    
+    private static final Logger log = LoggerFactory.getLogger(IdentityAuthApplication.class);
+    
     public static void main(String[] args) {
+        log.info("Starting Identity Auth Service...");
+        
         // Attach Application Insights agent for auto-instrumentation
         // This must be called before SpringApplication.run()
-        ApplicationInsights.attach();
+        try {
+            ApplicationInsights.attach();
+            log.info("Application Insights agent attached successfully");
+        } catch (Exception e) {
+            log.warn("Failed to attach Application Insights agent: {}", e.getMessage());
+        }
         
-        SpringApplication.run(IdentityAuthApplication.class, args);
+        try {
+            SpringApplication.run(IdentityAuthApplication.class, args);
+            log.info("Identity Auth Service started successfully");
+        } catch (Exception e) {
+            log.error("Failed to start Identity Auth Service", e);
+            throw e;
+        }
     }
 }

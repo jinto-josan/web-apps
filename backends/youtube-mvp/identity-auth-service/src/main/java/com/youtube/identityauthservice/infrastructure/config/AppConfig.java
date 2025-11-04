@@ -1,10 +1,14 @@
 package com.youtube.identityauthservice.infrastructure.config;
 
+import com.youtube.common.domain.events.outbox.JpaOutboxRepository;
+import com.youtube.common.domain.persistence.entity.OutboxEvent;
 import com.youtube.identityauthservice.application.services.DeviceFlowService;
 import com.youtube.identityauthservice.application.services.OidcIdTokenVerifier;
 import com.youtube.identityauthservice.application.services.SessionRefreshService;
 import com.youtube.identityauthservice.application.services.TokenService;
 import com.youtube.identityauthservice.infrastructure.jwt.JwkProvider;
+import com.youtube.identityauthservice.infrastructure.persistence.entity.OutboxEventEntity;
+import jakarta.persistence.EntityManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,5 +52,19 @@ public class AppConfig {
     @Bean
     public com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
         return new com.fasterxml.jackson.databind.ObjectMapper();
+    }
+
+    /**
+     * Creates a JpaOutboxRepository bean for common-domain EventPublisher.
+     * This bean implements the OutboxRepository interface required by EventPublisher.
+     */
+    @Bean
+    public JpaOutboxRepository commonDomainOutboxRepository(EntityManager entityManager) {
+        return new JpaOutboxRepository(entityManager, OutboxEventEntity.class) {
+            @Override
+            protected OutboxEvent createOutboxEvent() {
+                return new OutboxEventEntity();
+            }
+        };
     }
 }

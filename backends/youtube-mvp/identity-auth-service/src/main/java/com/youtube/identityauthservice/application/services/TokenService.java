@@ -6,14 +6,17 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.youtube.identityauthservice.infrastructure.jwt.JwkProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
-import java.util.UUID;
 
 public class TokenService {
 
+    private static final Logger log = LoggerFactory.getLogger(TokenService.class);
+    
     private final JwkProvider jwkProvider;
     private final String issuer;
     private final String audience;
@@ -27,6 +30,8 @@ public class TokenService {
     }
 
     public String newAccessToken(String userId, String sessionId, String scope, Map<String, Object> extraClaims) {
+        log.debug("Creating new access token - userId: {}, sessionId: {}, scope: {}", userId, sessionId, scope);
+        
         Instant now = Instant.now();
         JWTClaimsSet.Builder cb = new JWTClaimsSet.Builder()
                 .issuer(issuer)
@@ -52,9 +57,12 @@ public class TokenService {
 
         try {
             jwt.sign(jwkProvider.getSigner());
+            log.debug("Access token signed successfully - userId: {}, sessionId: {}, expiresIn: {}s", 
+                    userId, sessionId, accessTtlSeconds);
+            return jwt.serialize();
         } catch (Exception e) {
+            log.error("Failed to sign access token - userId: {}, sessionId: {}", userId, sessionId, e);
             throw new RuntimeException("Failed to sign access token", e);
         }
-        return jwt.serialize();
     }
 }
