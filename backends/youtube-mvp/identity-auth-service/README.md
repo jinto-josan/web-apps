@@ -139,6 +139,26 @@ The service uses PostgreSQL with the following default configuration:
 - **Password**: `identity_auth_pass`
 - **Port**: `5432`
 
+#### PostgreSQL 15+ Permissions
+
+PostgreSQL 15+ has stricter default permissions on the `public` schema. The database user needs `CREATE` privilege on the `public` schema for Flyway migrations to work.
+
+**If you encounter "permission denied for schema public" errors:**
+
+1. **Manual Fix (Recommended):** Connect to PostgreSQL as a superuser and run:
+   ```sql
+   GRANT CREATE ON SCHEMA public TO identity_user;
+   GRANT USAGE ON SCHEMA public TO identity_user;
+   ```
+   Or to grant to all users (development only):
+   ```sql
+   GRANT CREATE ON SCHEMA public TO PUBLIC;
+   ```
+
+2. **Using Init Script:** Copy `src/main/resources/db/init-grant-permissions.sql` and run it as a superuser before starting the application.
+
+3. **Docker Compose:** If using Docker Compose, add an init script to grant permissions automatically.
+
 ### Redis Configuration
 
 Redis is used for:
