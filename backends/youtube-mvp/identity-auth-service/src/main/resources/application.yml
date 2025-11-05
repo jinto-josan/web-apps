@@ -17,6 +17,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # Ensure Flyway can create tables in public schema
+    # The database user needs CREATE privilege on public schema
+    # For PostgreSQL 15+, run db/init-grant-permissions.sql as superuser before starting
+    baseline-on-migrate: true
   redis:
     host:
     port:

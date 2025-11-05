@@ -1,0 +1,9 @@
+com.youtube.common.domain.web.CommonDomainWebAutoConfiguration
+com.youtube.common.domain.web.HttpClientConfig
+com.youtube.common.domain.web.WebClientAutoConfiguration
+com.youtube.common.domain.web.IdempotencyFilterAutoConfiguration
+com.youtube.common.domain.events.outbox.DomainEventPublisherConfig
+com.youtube.common.domain.events.EventPublisher
+com.youtube.common.domain.services.tracing.TraceProvider
+com.youtube.common.domain.core.UnitOfWork
+

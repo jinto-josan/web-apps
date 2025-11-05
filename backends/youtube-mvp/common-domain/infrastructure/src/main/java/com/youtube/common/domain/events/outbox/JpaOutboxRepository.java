@@ -17,7 +17,6 @@ import java.util.Optional;
  * JPA implementation of OutboxRepository.
  * Services should extend this class with their specific OutboxEvent entity.
  */
-@Repository
 public abstract class JpaOutboxRepository implements OutboxRepository {
     
     protected final EntityManager entityManager;

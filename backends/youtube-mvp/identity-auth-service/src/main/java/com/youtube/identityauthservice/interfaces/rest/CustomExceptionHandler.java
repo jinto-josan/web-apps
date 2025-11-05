@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * Extends the common-domain error handler and adds service-specific handlers.
  */
 @RestControllerAdvice
-public class GlobalExceptionHandler extends com.youtube.common.domain.error.GlobalExceptionHandler {
+public class CustomExceptionHandler {
     
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Logger log = LoggerFactory.getLogger(CustomExceptionHandler.class);
     
     /**
      * Handles security exceptions specific to authentication/authorization.
