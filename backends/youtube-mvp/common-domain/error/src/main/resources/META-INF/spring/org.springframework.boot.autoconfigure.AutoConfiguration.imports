@@ -1,1 +1,2 @@
 com.youtube.common.domain.error.GlobalExceptionHandler
+com.youtube.common.domain.error.SecurityExceptionHandler

@@ -1,5 +1,6 @@
 package com.youtube.common.domain.events;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.youtube.common.domain.core.DomainEvent;
 import com.youtube.common.domain.services.correlation.CorrelationContext;
 import com.youtube.common.domain.events.outbox.OutboxRepository;
@@ -17,10 +18,12 @@ public class EventPublisher {
     
     private final OutboxRepository outboxRepository;
     private final TraceProvider traceProvider;
+    private final ObjectMapper mapper;
     
-    public EventPublisher(OutboxRepository outboxRepository, TraceProvider traceProvider) {
+    public EventPublisher(OutboxRepository outboxRepository, TraceProvider traceProvider, ObjectMapper mapper) {
         this.outboxRepository = outboxRepository;
         this.traceProvider = traceProvider;
+        this.mapper=mapper;
     }
     
     /**
@@ -77,7 +80,6 @@ public class EventPublisher {
     
     private String serializeEvent(DomainEvent event) {
         try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             return mapper.writeValueAsString(event);
         } catch (Exception e) {
             throw new RuntimeException("Failed to serialize domain event", e);

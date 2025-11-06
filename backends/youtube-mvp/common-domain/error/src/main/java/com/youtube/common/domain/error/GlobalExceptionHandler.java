@@ -5,7 +5,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.ErrorResponseException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -93,15 +92,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ForbiddenException.class)
     public ProblemDetail handleForbiddenException(ForbiddenException ex) {
         log.debug("Forbidden exception", ex);
-        return ProblemDetailBuilder.forbidden(ex.getMessage());
-    }
-    
-    /**
-     * Handles Spring Security access denied exceptions.
-     */
-    @ExceptionHandler(AccessDeniedException.class)
-    public ProblemDetail handleAccessDenied(AccessDeniedException ex) {
-        log.debug("Access denied", ex);
         return ProblemDetailBuilder.forbidden(ex.getMessage());
     }
     
