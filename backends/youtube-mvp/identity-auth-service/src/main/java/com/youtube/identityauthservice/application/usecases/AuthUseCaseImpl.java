@@ -11,6 +11,7 @@ import com.youtube.identityauthservice.application.queries.GetUserQuery;
 import com.youtube.identityauthservice.application.services.OidcIdTokenVerifier;
 import com.youtube.identityauthservice.application.services.SessionRefreshService;
 import com.youtube.identityauthservice.application.services.TokenService;
+import com.youtube.identityauthservice.domain.entities.UserType;
 import com.youtube.identityauthservice.domain.entities.User;
 import com.youtube.identityauthservice.domain.events.UserCreated;
 import com.youtube.identityauthservice.domain.repositories.UserRepository;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -77,49 +79,97 @@ public class AuthUseCaseImpl implements AuthUseCase {
         
         // Verify the ID token
         var verifiedIdentity = verifier.verify(command.getIdToken());
-        String email = Optional.ofNullable(verifiedIdentity.email())
-                .orElseThrow(() -> {
-                    log.error("Token exchange failed: email claim missing");
-                    return new SecurityException("email claim missing");
-                });
-        String name = Optional.ofNullable(verifiedIdentity.name()).orElse(email);
-        boolean emailVerified = verifiedIdentity.emailVerified();
-
-        log.debug("ID token verified - email: {}, emailVerified: {}", email, emailVerified);
-
-        // Normalize email for lookup
-        String normalizedEmail = email.toLowerCase(Locale.ROOT);
-
-        // Check if user exists, create if not
-        Optional<User> existingUserOpt = userRepository.findByNormalizedEmail(normalizedEmail);
-        boolean isNewUser = existingUserOpt.isEmpty();
-        log.debug("User lookup - normalizedEmail: {}, isNewUser: {}", normalizedEmail, isNewUser);
-
+        
         User user;
         Instant now = clock.now();
-        if (isNewUser) {
-            // Create new user
-            UserId userId = userIdGenerator.nextId();
-            log.info("Creating new user - userId: {}, email: {}", userId.asString(), email);
-            user = User.builder()
-                    .id(userId)
-                    .email(email)
-                    .normalizedEmail(normalizedEmail)
-                    .displayName(name)
-                    .emailVerified(emailVerified)
-                    .status((short) 1)
-                    .createdAt(now)
-                    .updatedAt(now)
-                    .version(0)
-                    .build();
+        boolean isNewUser;
+        
+        if (verifiedIdentity.isServicePrincipal()) {
+            // Handle service principal authentication
+            String servicePrincipalId = verifiedIdentity.servicePrincipalId();
+            if (servicePrincipalId == null || servicePrincipalId.isBlank()) {
+                log.error("Token exchange failed: service principal ID missing");
+                throw new SecurityException("service principal ID missing");
+            }
+            
+            String displayName = Optional.ofNullable(verifiedIdentity.name())
+                    .orElse("Service Principal " + servicePrincipalId.substring(0, Math.min(8, servicePrincipalId.length())));
+            
+            log.debug("ID token verified - servicePrincipalId: {}, displayName: {}", servicePrincipalId, displayName);
+            
+            // Check if service principal exists, create if not
+            Optional<User> existingUserOpt = userRepository.findByServicePrincipalId(servicePrincipalId);
+            isNewUser = existingUserOpt.isEmpty();
+            log.debug("Service principal lookup - servicePrincipalId: {}, isNewUser: {}", servicePrincipalId, isNewUser);
+            
+            if (isNewUser) {
+                // Create new service principal user
+                UserId userId = userIdGenerator.nextId();
+                log.info("Creating new service principal - userId: {}, servicePrincipalId: {}", userId.asString(), servicePrincipalId);
+                user = User.builder()
+                        .id(userId)
+                        .userType(UserType.SERVICE_PRINCIPAL)
+                        .servicePrincipalId(servicePrincipalId)
+                        .displayName(displayName)
+                        .email(null)
+                        .normalizedEmail(null)
+                        .emailVerified(false)
+                        .status((short) 1)
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .version(0)
+                        .build();
+            } else {
+                // Update existing service principal
+                user = existingUserOpt.get();
+                log.debug("Updating existing service principal - userId: {}", user.getId().asString());
+                user = user.withDisplayName(displayName).markUpdated();
+            }
         } else {
-            // Update existing user
-            user = existingUserOpt.get();
-            log.debug("Updating existing user - userId: {}", user.getId().asString());
-            user = user.withEmail(email)
-                    .withDisplayName(name)
-                    .withEmailVerified(emailVerified)
-                    .markUpdated();
+            // Handle regular user authentication (email-based)
+            String email = Optional.ofNullable(verifiedIdentity.email())
+                    .orElseThrow(() -> {
+                        log.error("Token exchange failed: email claim missing");
+                        return new SecurityException("email claim missing");
+                    });
+            String name = Optional.ofNullable(verifiedIdentity.name()).orElse(email);
+            boolean emailVerified = verifiedIdentity.emailVerified();
+
+            log.debug("ID token verified - email: {}, emailVerified: {}", email, emailVerified);
+
+            // Normalize email for lookup
+            String normalizedEmail = email.toLowerCase(Locale.ROOT);
+
+            // Check if user exists, create if not
+            Optional<User> existingUserOpt = userRepository.findByNormalizedEmail(normalizedEmail);
+            isNewUser = existingUserOpt.isEmpty();
+            log.debug("User lookup - normalizedEmail: {}, isNewUser: {}", normalizedEmail, isNewUser);
+
+            if (isNewUser) {
+                // Create new user
+                UserId userId = userIdGenerator.nextId();
+                log.info("Creating new user - userId: {}, email: {}", userId.asString(), email);
+                user = User.builder()
+                        .id(userId)
+                        .userType(UserType.USER)
+                        .email(email)
+                        .normalizedEmail(normalizedEmail)
+                        .displayName(name)
+                        .emailVerified(emailVerified)
+                        .status((short) 1)
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .version(0)
+                        .build();
+            } else {
+                // Update existing user
+                user = existingUserOpt.get();
+                log.debug("Updating existing user - userId: {}", user.getId().asString());
+                user = user.withEmail(email)
+                        .withDisplayName(name)
+                        .withEmailVerified(emailVerified)
+                        .markUpdated();
+            }
         }
 
         unitOfWork.begin();
@@ -128,11 +178,14 @@ public class AuthUseCaseImpl implements AuthUseCase {
             
             // Publish user_created event if this is a new user
             if (isNewUser) {
-                log.debug("Publishing UserCreated event - userId: {}", user.getId().asString());
+                log.debug("Publishing UserCreated event - userId: {}, userType: {}", 
+                        user.getId().asString(), user.getUserType());
                 UserCreated event = new UserCreated(
                         user.getId().asString(),
+                        user.getUserType(),
                         user.getEmail(),
                         user.getNormalizedEmail(),
+                        user.getServicePrincipalId(),
                         user.getDisplayName(),
                         user.isEmailVerified(),
                         user.getStatus(),
@@ -165,15 +218,25 @@ public class AuthUseCaseImpl implements AuthUseCase {
         String tokenScope = Optional.ofNullable(command.getScope()).orElse(defaultScope);
         log.debug("Generating access token - userId: {}, sessionId: {}, scope: {}", 
                 user.getId().asString(), sessionResult.session.getId().asString(), tokenScope);
+        
+        // Build token claims based on user type
+        Map<String, Object> tokenClaims = new HashMap<>();
+        tokenClaims.put("name", user.getDisplayName());
+        if (user.getUserType() == UserType.USER && user.getEmail() != null) {
+            tokenClaims.put("email", user.getEmail());
+        } else if (user.getUserType() == UserType.SERVICE_PRINCIPAL && user.getServicePrincipalId() != null) {
+            tokenClaims.put("service_principal_id", user.getServicePrincipalId());
+        }
+        
         String accessToken = tokenService.newAccessToken(
                 user.getId().asString(),
                 sessionResult.session.getId().asString(),
                 tokenScope,
-                Map.of("name", user.getDisplayName(), "email", user.getEmail())
+                tokenClaims
         );
 
-        log.info("Token exchange completed successfully - userId: {}, sessionId: {}, isNewUser: {}", 
-                user.getId().asString(), sessionResult.session.getId().asString(), isNewUser);
+        log.info("Token exchange completed successfully - userId: {}, sessionId: {}, isNewUser: {}, userType: {}", 
+                user.getId().asString(), sessionResult.session.getId().asString(), isNewUser, user.getUserType());
 
         return new TokenResponse(
                 accessToken,
@@ -206,11 +269,20 @@ public class AuthUseCaseImpl implements AuthUseCase {
             log.debug("Generating access token for refresh - userId: {}, sessionId: {}, scope: {}", 
                     userId.asString(), rotated.session.getId().asString(), scope);
             
+            // Build token claims based on user type
+            Map<String, Object> tokenClaims = new HashMap<>();
+            tokenClaims.put("name", user.getDisplayName());
+            if (user.getUserType() == UserType.USER && user.getEmail() != null) {
+                tokenClaims.put("email", user.getEmail());
+            } else if (user.getUserType() == UserType.SERVICE_PRINCIPAL && user.getServicePrincipalId() != null) {
+                tokenClaims.put("service_principal_id", user.getServicePrincipalId());
+            }
+            
             String accessToken = tokenService.newAccessToken(
                     user.getId().asString(),
                     rotated.session.getId().asString(),
                     scope,
-                    Map.of("name", user.getDisplayName(), "email", user.getEmail())
+                    tokenClaims
             );
 
             log.info("Token refresh completed successfully - userId: {}, sessionId: {}", 

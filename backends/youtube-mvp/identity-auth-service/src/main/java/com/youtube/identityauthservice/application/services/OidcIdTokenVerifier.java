@@ -29,6 +29,8 @@ public class OidcIdTokenVerifier {
             String email,
             String name,
             boolean emailVerified,
+            boolean isServicePrincipal,
+            String servicePrincipalId,
             JWTClaimsSet rawClaims
     ) {}
 
@@ -110,8 +112,13 @@ public class OidcIdTokenVerifier {
             String email = resolveEmail(claims);
             String name = resolveName(claims);
             boolean emailVerified = Optional.ofNullable(asBoolean(claims, "email_verified")).orElse(true);
+            
+            // Detect service principal: has appid/azp claim and no email
+            boolean isServicePrincipal = isServicePrincipalToken(claims, email);
+            String servicePrincipalId = isServicePrincipal ? resolveServicePrincipalId(claims) : null;
 
-            return new VerifiedIdentity(claims.getSubject(), iss, aud, email, name, emailVerified, claims);
+            return new VerifiedIdentity(claims.getSubject(), iss, aud, email, name, emailVerified, 
+                    isServicePrincipal, servicePrincipalId, claims);
         } catch (ParseException e) {
             throw new SecurityException("Invalid token", e);
         } catch (BadJOSEException | JOSEException e) {
@@ -153,6 +160,54 @@ public class OidcIdTokenVerifier {
     private static Boolean asBoolean(JWTClaimsSet claims, String key) {
         Object v = claims.getClaim(key);
         return (v instanceof Boolean b) ? b : null;
+    }
+    
+    /**
+     * Determines if the token is from a service principal.
+     * Service principals typically have appid/azp claims and no email.
+     */
+    private static boolean isServicePrincipalToken(JWTClaimsSet claims, String email) {
+        // Check for appid or azp claim (Azure AD service principal indicators)
+        String appid = asString(claims, "appid");
+        String azp = asString(claims, "azp");
+        
+        // Service principal if:
+        // 1. Has appid/azp claim AND no email, OR
+        // 2. Has appid claim that matches the subject (app-only token)
+        boolean hasAppId = (appid != null && !appid.isBlank()) || (azp != null && !azp.isBlank());
+        boolean noEmail = (email == null || email.isBlank());
+        
+        if (hasAppId && noEmail) {
+            return true;
+        }
+        
+        // Check if appid matches subject (app-only authentication)
+        if (appid != null && appid.equals(claims.getSubject())) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Resolves the service principal identifier from token claims.
+     * Prefers appid, falls back to oid (object ID), then subject.
+     */
+    private static String resolveServicePrincipalId(JWTClaimsSet claims) {
+        // Prefer appid (application ID)
+        String appid = asString(claims, "appid");
+        if (appid != null && !appid.isBlank()) {
+            return appid;
+        }
+        
+        // Fall back to oid (object ID)
+        String oid = asString(claims, "oid");
+        if (oid != null && !oid.isBlank()) {
+            return oid;
+        }
+        
+        // Last resort: use subject
+        return claims.getSubject();
     }
 }
 

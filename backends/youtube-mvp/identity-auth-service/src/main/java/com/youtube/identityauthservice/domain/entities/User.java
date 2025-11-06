@@ -14,8 +14,10 @@ import java.time.Instant;
 @Getter
 public class User extends AggregateRoot<UserId> {
     
+    private UserType userType;
     private String email;
     private String normalizedEmail;
+    private String servicePrincipalId;
     private String displayName;
     private short status;
     private boolean emailVerified;
@@ -35,8 +37,10 @@ public class User extends AggregateRoot<UserId> {
     @Builder
     protected User(
             UserId id,
+            UserType userType,
             String email,
             String normalizedEmail,
+            String servicePrincipalId,
             String displayName,
             short status,
             boolean emailVerified,
@@ -49,8 +53,10 @@ public class User extends AggregateRoot<UserId> {
             Instant updatedAt,
             long version) {
         super(id, version);
+        this.userType = userType != null ? userType : UserType.USER;
         this.email = email;
         this.normalizedEmail = normalizedEmail;
+        this.servicePrincipalId = servicePrincipalId;
         this.displayName = displayName;
         this.status = status;
         this.emailVerified = emailVerified;
@@ -65,7 +71,7 @@ public class User extends AggregateRoot<UserId> {
     
     public User withEmail(String email) {
         return new User(
-            getId(), email, normalizedEmail, displayName, status,
+            getId(), userType, email, normalizedEmail, servicePrincipalId, displayName, status,
             emailVerified, passwordHash, passwordAlg, mfaEnabled,
             termsVersion, termsAcceptedAt, createdAt, Instant.now(), getVersion()
         );
@@ -73,7 +79,7 @@ public class User extends AggregateRoot<UserId> {
     
     public User withDisplayName(String displayName) {
         return new User(
-            getId(), email, normalizedEmail, displayName, status,
+            getId(), userType, email, normalizedEmail, servicePrincipalId, displayName, status,
             emailVerified, passwordHash, passwordAlg, mfaEnabled,
             termsVersion, termsAcceptedAt, createdAt, Instant.now(), getVersion()
         );
@@ -81,7 +87,7 @@ public class User extends AggregateRoot<UserId> {
     
     public User withEmailVerified(boolean verified) {
         return new User(
-            getId(), email, normalizedEmail, displayName, status,
+            getId(), userType, email, normalizedEmail, servicePrincipalId, displayName, status,
             verified, passwordHash, passwordAlg, mfaEnabled,
             termsVersion, termsAcceptedAt, createdAt, Instant.now(), getVersion()
         );
@@ -90,7 +96,7 @@ public class User extends AggregateRoot<UserId> {
     public User markUpdated() {
         incrementVersion();
         return new User(
-            getId(), email, normalizedEmail, displayName, status,
+            getId(), userType, email, normalizedEmail, servicePrincipalId, displayName, status,
             emailVerified, passwordHash, passwordAlg, mfaEnabled,
             termsVersion, termsAcceptedAt, createdAt, Instant.now(), getVersion()
         );

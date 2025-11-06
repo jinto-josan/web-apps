@@ -13,6 +13,7 @@ import java.util.Optional;
 @Repository
 public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
     Optional<UserEntity> findByNormalizedEmail(String normalizedEmail);
+    Optional<UserEntity> findByServicePrincipalId(String servicePrincipalId);
     boolean existsByNormalizedEmail(String normalizedEmail);
 }
 

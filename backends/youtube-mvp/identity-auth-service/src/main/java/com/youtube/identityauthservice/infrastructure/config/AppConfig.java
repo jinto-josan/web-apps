@@ -1,5 +1,7 @@
 package com.youtube.identityauthservice.infrastructure.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.youtube.common.domain.events.outbox.JpaOutboxRepository;
 import com.youtube.common.domain.persistence.entity.OutboxEvent;
 import com.youtube.identityauthservice.application.services.DeviceFlowService;
@@ -50,8 +52,10 @@ public class AppConfig {
     }
 
     @Bean
-    public com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
-        return new com.fasterxml.jackson.databind.ObjectMapper();
+    public ObjectMapper objectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        return mapper;
     }
 
     /**

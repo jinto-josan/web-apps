@@ -32,6 +32,15 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public Optional<User> findByServicePrincipalId(String servicePrincipalId) {
+        log.debug("Finding user by service principal ID - servicePrincipalId: {}", servicePrincipalId);
+        Optional<User> result = jpaRepo.findByServicePrincipalId(servicePrincipalId)
+                .map(UserEntity::toDomain);
+        log.debug("User lookup result - servicePrincipalId: {}, found: {}", servicePrincipalId, result.isPresent());
+        return result;
+    }
+
+    @Override
     public Optional<User> findById(com.youtube.common.domain.shared.valueobjects.UserId userId) {
         log.debug("Finding user by ID - userId: {}", userId.asString());
         Optional<User> result = jpaRepo.findById(userId.asString())
@@ -50,7 +59,9 @@ public class UserRepositoryImpl implements UserRepository {
                         // Update existing
                         existing.setEmail(aggregate.getEmail());
                         existing.setNormalizedEmail(aggregate.getNormalizedEmail());
+                        existing.setServicePrincipalId(aggregate.getServicePrincipalId());
                         existing.setDisplayName(aggregate.getDisplayName());
+                        existing.setUserType(aggregate.getUserType());
                         existing.setStatus(aggregate.getStatus());
                         existing.setEmailVerified(aggregate.isEmailVerified());
                         existing.setPasswordHash(aggregate.getPasswordHash());

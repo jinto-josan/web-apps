@@ -15,10 +15,12 @@ import java.time.Instant;
 @Table(name = "users",
         indexes = {
                 @Index(name = "ix_users_status", columnList = "status"),
-                @Index(name = "ix_users_updated_at", columnList = "updated_at")
+                @Index(name = "ix_users_updated_at", columnList = "updated_at"),
+                @Index(name = "ix_users_service_principal_id", columnList = "service_principal_id")
         },
         uniqueConstraints = {
-                @UniqueConstraint(name = "ux_users_normalized_email", columnNames = "normalized_email")
+                @UniqueConstraint(name = "ux_users_normalized_email", columnNames = "normalized_email"),
+                @UniqueConstraint(name = "ux_users_service_principal_id", columnNames = "service_principal_id")
         }
 )
 @Getter
@@ -29,11 +31,18 @@ public class UserEntity {
     @Column(length = 26, nullable = false)
     private String id;
 
-    @Column(nullable = false, length = 320)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "user_type", nullable = false, length = 20)
+    private com.youtube.identityauthservice.domain.entities.UserType userType = com.youtube.identityauthservice.domain.entities.UserType.USER;
+
+    @Column(length = 320)
     private String email;
 
-    @Column(name = "normalized_email", nullable = false, length = 320)
+    @Column(name = "normalized_email", length = 320)
     private String normalizedEmail;
+
+    @Column(name = "service_principal_id", length = 255)
+    private String servicePrincipalId;
 
     @Column(name = "display_name", nullable = false, length = 200)
     private String displayName;
@@ -87,8 +96,10 @@ public class UserEntity {
     public User toDomain() {
         return User.builder()
                 .id(com.youtube.common.domain.shared.valueobjects.UserId.from(id))
+                .userType(userType)
                 .email(email)
                 .normalizedEmail(normalizedEmail)
+                .servicePrincipalId(servicePrincipalId)
                 .displayName(displayName)
                 .status(status)
                 .emailVerified(emailVerified)
@@ -109,8 +120,10 @@ public class UserEntity {
     public static UserEntity fromDomain(User user) {
         UserEntity entity = new UserEntity();
         entity.setId(user.getId().asString());
+        entity.setUserType(user.getUserType());
         entity.setEmail(user.getEmail());
         entity.setNormalizedEmail(user.getNormalizedEmail());
+        entity.setServicePrincipalId(user.getServicePrincipalId());
         entity.setDisplayName(user.getDisplayName());
         entity.setStatus(user.getStatus());
         entity.setEmailVerified(user.isEmailVerified());

@@ -19,7 +19,7 @@ spring:
 
 app:
   issuer: http://localhost:8080
-  audience: identity-platform
+  audience: api://5b3ef65b-9c29-47a9-8d5b-f2032ee3e8e7
   access-token-ttl-seconds: 900
   refresh-token-ttl-seconds: 2592000
   device:

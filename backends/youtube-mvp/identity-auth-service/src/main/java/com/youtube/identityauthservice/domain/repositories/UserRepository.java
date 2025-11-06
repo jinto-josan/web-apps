@@ -21,6 +21,14 @@ public interface UserRepository extends Repository<User, UserId> {
     Optional<User> findByNormalizedEmail(String normalizedEmail);
     
     /**
+     * Finds a user by service principal ID.
+     * 
+     * @param servicePrincipalId the service principal ID
+     * @return an Optional containing the user if found
+     */
+    Optional<User> findByServicePrincipalId(String servicePrincipalId);
+    
+    /**
      * Checks if a user exists for the given normalized email.
      * 
      * @param normalizedEmail the normalized email
