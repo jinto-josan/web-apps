@@ -1,0 +1,28 @@
+meta {
+  name: refresh
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{BASE_URI}}/refresh
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "refreshToken": "{{refreshToken}}",
+    "scope": "jinto"
+  }
+}
+
+script:post-response {
+  bru.setVar("accessToken", res("accessToken"));
+  bru.setVar("refreshToken", res("refreshToken"));
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

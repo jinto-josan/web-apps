@@ -1,0 +1,22 @@
+meta {
+  name: logout
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BASE_URI}}/refresh
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "refreshToken": "01K99ER7QHZJR86K4JY2WKNG5V.38e4d33214ce4bfbabf6cf06ff6f4895"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

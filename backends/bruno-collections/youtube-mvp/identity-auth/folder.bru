@@ -1,8 +1,12 @@
 meta {
   name: identity-auth
-  seq: 1
+  seq: 3
 }
 
 auth {
   mode: inherit
+}
+
+vars:pre-request {
+  BASE_URI: http://localhost:8080/auth
 }
