@@ -5,14 +5,14 @@ meta {
 }
 
 post {
-  url: {{BASE_URI}}/refresh
+  url: {{BASE_URI}}/logout
   body: json
   auth: inherit
 }
 
 body:json {
   {
-    "refreshToken": "01K99ER7QHZJR86K4JY2WKNG5V.38e4d33214ce4bfbabf6cf06ff6f4895"
+    "refreshToken": "{{refreshToken}}"
   }
 }
 

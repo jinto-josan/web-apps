@@ -1,0 +1,31 @@
+meta {
+  name: MicrosoftAuth
+  type: http
+  seq: 1
+}
+
+post {
+  url: https://login.microsoftonline.com/{{tenantId}}/oauth2/v2.0/token
+  body: formUrlEncoded
+  auth: inherit
+}
+
+headers {
+  Content-Type: application/x-www-form-urlencoded
+}
+
+body:form-urlencoded {
+  grant_type: client_credentials
+  client_id: 80b3c3e6-686c-4d95-a641-924269a30029
+  scope: api://5b3ef65b-9c29-47a9-8d5b-f2032ee3e8e7/.default
+  client_secret: 
+}
+
+script:post-response {
+  let oidcToken=bru.setVar("oidcToken", res("access_token"));
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
