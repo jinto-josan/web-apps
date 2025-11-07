@@ -5,40 +5,155 @@ skinparam shadowing false
 skinparam packageStyle rectangle
 
 package "CQRS" {
-    class WriteModel
-    class ReadModel
-    WriteModel -> ReadModel : Events
+    class WriteModel {
+        +Commands
+        +UpdateProfileCommand
+        +UpdatePrivacySettingsCommand
+        +UpdateNotificationSettingsCommand
+        +UpdateAccessibilityPreferencesCommand
+    }
+    
+    class ReadModel {
+        +Queries
+        +GetProfileQuery
+        +GetPrivacySettingsQuery
+        +GetNotificationSettingsQuery
+        +GetAccessibilityPreferencesQuery
+    }
+    
+    WriteModel -> ReadModel : Domain Events
 }
 
 package "Saga Pattern" {
-    class UpdateProfileSaga
-    class SagaStep
+    class UpdateProfileSaga {
+        +execute(): AccountProfile
+        +compensate(): void
+    }
+    
+    class SagaStep {
+        +execute(context): void
+        +compensate(context): void
+    }
+    
     UpdateProfileSaga *-- SagaStep
+}
+
+package "Event-Driven Architecture" {
+    class DomainEvents {
+        +ProfileUpdated
+        +PrivacySettingsChanged
+        +NotificationPrefsChanged
+        +AccessibilityPrefsChanged
+    }
+    
+    class UserCreatedEvent {
+        +userId: UserId
+        +email: String
+        +username: String
+    }
+    
+    class EventRouter {
+        +route(event, correlationId): void
+    }
+    
+    class UserCreatedEventHandler {
+        +handle(event, correlationId): void
+    }
+    
+    DomainEvents --> EventRouter
+    UserCreatedEvent --> EventRouter
+    EventRouter --> UserCreatedEventHandler
 }
 
 package "Clean Architecture" {
     package "Interface" {
-        class ProfileController
+        class ProfileController {
+            +REST Endpoints
+            +Correlation ID Support
+            +Idempotency Support
+        }
     }
     
     package "Application" {
-        class ProfileUseCase
-        class UpdateProfileSaga
+        class ProfileUseCase {
+            +updateProfile(command): AccountProfile
+            +getProfile(query): AccountProfile
+            +updatePrivacySettings(command): PrivacySettings
+            +updateNotificationSettings(command): NotificationSettings
+            +updateAccessibilityPreferences(command): AccessibilityPreferences
+        }
+        
+        class UpdateProfileSaga {
+            +execute(): AccountProfile
+        }
     }
     
     package "Domain" {
-        class AccountProfile
-        class ProfileRepository
+        class AccountProfile {
+            +accountId: String
+            +displayName: String
+            +privacySettings: PrivacySettings
+            +notificationSettings: NotificationSettings
+            +accessibilityPreferences: AccessibilityPreferences
+            +version: int
+            +etag: String
+        }
+        
+        class ProfileRepository {
+            +findByAccountId(accountId): Optional<AccountProfile>
+            +save(profile): AccountProfile
+            +update(profile): AccountProfile
+        }
     }
     
     package "Infrastructure" {
-        class ProfileRepositoryImpl
+        class ProfileRepositoryImpl {
+            +JPA Implementation
+            +Schema: user_profile
+        }
+        
+        class EventPublisherImpl {
+            +Transactional Outbox
+            +Common Domain Integration
+        }
+    }
+}
+
+package "Common Domain" {
+    class CorrelationFilter {
+        +X-Correlation-Id
+        +traceparent
     }
     
-    ProfileController --> ProfileUseCase
-    ProfileUseCase --> UpdateProfileSaga
-    UpdateProfileSaga --> ProfileRepository
-    ProfileRepository <|.. ProfileRepositoryImpl
+    class IdempotencyFilter {
+        +Idempotency-Key header
+        +Request hash validation
+    }
+    
+    class UnitOfWork {
+        +begin(): void
+        +commit(): void
+        +rollback(exception): void
+    }
 }
+
+ProfileController --> ProfileUseCase
+ProfileController ..> CorrelationFilter : uses
+ProfileController ..> IdempotencyFilter : uses
+ProfileUseCase --> UpdateProfileSaga
+ProfileUseCase --> UnitOfWork : uses
+UpdateProfileSaga --> ProfileRepository
+UpdateProfileSaga --> DomainEvents : publishes
+ProfileRepository <|.. ProfileRepositoryImpl
+DomainEvents --> EventPublisherImpl
+EventPublisherImpl --> EventRouter
+
+ProfileRepositoryImpl ..> "user_profile.account_profiles" : maps to
+ProfileRepositoryImpl ..> "user_profile.http_idempotency" : maps to
+
+note bottom of ProfileRepositoryImpl
+    Database: userprofile
+    Schema: user_profile
+end note
 
 @enduml

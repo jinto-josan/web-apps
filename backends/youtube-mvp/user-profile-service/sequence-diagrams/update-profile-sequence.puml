@@ -12,8 +12,11 @@ skinparam arrowThickness 2
 
 actor Client
 participant "API Gateway" as APIGW
+participant "CorrelationFilter" as CorrFilter
+participant "IdempotencyFilter" as IdempFilter
 participant "ProfileController" as Controller
 participant "ProfileUseCase" as UseCase
+participant "UnitOfWork" as UoW
 participant "UpdateProfileSaga" as Saga
 participant "LoadProfileStep" as LoadStep
 participant "ValidatePhotoUrlStep" as ValidateStep
@@ -23,18 +26,35 @@ participant "ProfileRepository" as ProfileRepo
 participant "EventPublisher" as EventPub
 participant "CacheService" as Cache
 participant "BlobUriValidator" as BlobValidator
-database "PostgreSQL" as DB
+database "PostgreSQL\n(userprofile)" as DB
+database "user_profile.account_profiles" as AccountTable
+database "user_profile.http_idempotency" as IdempTable
 participant "Redis Cache" as Redis
 participant "Kafka" as Kafka
 
-Client -> APIGW: PATCH /profiles/{accountId}\n{\n  "displayName": "John Doe",\n  "locale": "en-US",\n  "timezone": "America/New_York"\n}\nIf-Match: "etag-value"
+Client -> APIGW: PUT /profiles/{accountId}\n{\n  "displayName": "John Doe",\n  "locale": "en-US",\n  "timezone": "America/New_York"\n}\nIf-Match: "etag-value"\nIdempotency-Key: "req-123"\nX-Correlation-Id: "corr-456"
 activate Client
 
-APIGW -> Controller: request with JWT token
+APIGW -> CorrFilter: request with headers
+activate CorrFilter
+CorrFilter -> CorrFilter: extract/set correlation ID
+CorrFilter -> IdempFilter: forward request
+deactivate CorrFilter
+
+activate IdempFilter
+IdempFilter -> IdempTable: check idempotency key
+IdempTable --> IdempFilter: not found (new request)
+IdempFilter -> Controller: forward request
+deactivate IdempFilter
+
 activate Controller
 
 Controller -> UseCase: updateProfile(command, userId)
 activate UseCase
+
+UseCase -> UoW: begin()
+activate UoW
+UoW --> UseCase: transaction started
 
 UseCase -> Saga: execute()
 activate Saga
@@ -45,14 +65,14 @@ Saga -> LoadStep: execute(context)
 activate LoadStep
 LoadStep -> ProfileRepo: findByAccountId(accountId)
 activate ProfileRepo
-ProfileRepo -> DB: SELECT * FROM account_profiles\nWHERE account_id = ?
-activate DB
-DB --> ProfileRepo: profile data
-deactivate DB
+ProfileRepo -> AccountTable: SELECT * FROM user_profile.account_profiles\nWHERE account_id = ?
+activate AccountTable
+AccountTable --> ProfileRepo: profile data
+deactivate AccountTable
 deactivate ProfileRepo
 deactivate LoadStep
 
-note over LoadStep: Validate ETag for optimistic locking
+note over LoadStep: Validate ETag for optimistic locking\nCheck version for concurrency control
 
 Saga -> ValidateStep: execute(context)
 activate ValidateStep
@@ -64,10 +84,10 @@ Saga -> UpdateStep: execute(context)
 activate UpdateStep
 UpdateStep -> ProfileRepo: update(profile, newEtag)
 activate ProfileRepo
-ProfileRepo -> DB: UPDATE account_profiles\nSET display_name = ?,\n    locale = ?,\n    timezone = ?,\n    version = version + 1,\n    etag = ?,\n    updated_at = ?\nWHERE account_id = ?\nAND version = ?
-activate DB
-DB --> ProfileRepo: 1 row affected
-deactivate DB
+ProfileRepo -> AccountTable: UPDATE user_profile.account_profiles\nSET display_name = ?,\n    locale = ?,\n    timezone = ?,\n    version = version + 1,\n    etag = ?,\n    updated_at = ?,\n    updated_by = ?\nWHERE account_id = ?\nAND version = ?
+activate AccountTable
+AccountTable --> ProfileRepo: 1 row affected
+deactivate AccountTable
 deactivate ProfileRepo
 deactivate UpdateStep
 
@@ -75,7 +95,8 @@ Saga -> PublishStep: execute(context)
 activate PublishStep
 PublishStep -> EventPub: publishProfileUpdated(event)
 activate EventPub
-EventPub -> Kafka: publish(ProfileUpdated)
+note over EventPub: Uses Transactional Outbox\nfrom Common Domain
+EventPub -> Kafka: publish(ProfileUpdated)\nwith correlation ID
 activate Kafka
 Kafka --> EventPub: acknowledged
 deactivate Kafka
@@ -93,10 +114,25 @@ deactivate PublishStep
 Saga --> UseCase: updated profile
 deactivate Saga
 
+UseCase -> UoW: commit()
+UoW --> UseCase: transaction committed
+deactivate UoW
+
+UseCase -> IdempTable: save idempotency record\n(idempotency_key, request_hash, response)
+activate IdempTable
+IdempTable --> UseCase: saved
+deactivate IdempTable
+
 UseCase --> Controller: AccountProfile
 deactivate UseCase
 
-Controller --> APIGW: 200 OK\nETag: "new-etag"\n{ profile }
+Controller --> IdempFilter: response with correlation ID
+activate IdempFilter
+IdempFilter --> CorrFilter: forward response
+deactivate IdempFilter
+activate CorrFilter
+CorrFilter --> APIGW: 200 OK\nETag: "new-etag"\nX-Correlation-Id: "corr-456"\n{ profile }
+deactivate CorrFilter
 deactivate Controller
 
 APIGW --> Client: response
@@ -104,7 +140,54 @@ deactivate APIGW
 
 deactivate Client
 
-note over Client, Kafka: **Success Path Complete**\nProfile updated, events published,\ncache invalidated
+note over Client, Kafka: **Success Path Complete**\nProfile updated in user_profile schema,\nevents published with correlation ID,\ncache invalidated,\nidempotency record saved
+
+== UserCreatedEvent Handling ==
+newpage UserCreatedEvent Handling
+
+participant "Identity Auth Service" as IdentityService
+participant "Kafka" as KafkaEvent
+participant "EventRouter" as Router
+participant "UserCreatedEventHandler" as EventHandler
+participant "ProfileRepository" as ProfileRepo
+database "user_profile.account_profiles" as AccountTable
+
+IdentityService -> KafkaEvent: publish(UserCreatedEvent)\n{userId, email, username}
+activate IdentityService
+activate KafkaEvent
+
+KafkaEvent -> Router: route(event, correlationId)
+activate Router
+Router -> EventHandler: handle(UserCreatedEvent, correlationId)
+activate EventHandler
+
+EventHandler -> ProfileRepo: exists(accountId)
+activate ProfileRepo
+ProfileRepo -> AccountTable: SELECT COUNT(*) FROM user_profile.account_profiles\nWHERE account_id = ?
+activate AccountTable
+AccountTable --> ProfileRepo: 0 (not exists)
+deactivate AccountTable
+deactivate ProfileRepo
+
+note over EventHandler: Idempotency check:\nIf profile exists, skip creation
+
+EventHandler -> ProfileRepo: save(defaultProfile)
+activate ProfileRepo
+ProfileRepo -> AccountTable: INSERT INTO user_profile.account_profiles\n(account_id, display_name, version, ...)\nVALUES (?, ?, 1, ...)
+activate AccountTable
+AccountTable --> ProfileRepo: profile created
+deactivate AccountTable
+deactivate ProfileRepo
+
+EventHandler --> Router: success
+deactivate EventHandler
+Router --> KafkaEvent: acknowledged
+deactivate Router
+KafkaEvent --> IdentityService: processed
+deactivate KafkaEvent
+deactivate IdentityService
+
+note over IdentityService, AccountTable: **UserCreatedEvent Processed**\nDefault profile created in user_profile schema\nwith idempotency protection
 
 @enduml
 

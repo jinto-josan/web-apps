@@ -15,146 +15,128 @@ skinparam classBackgroundColor white
 skinparam classBorderColor black
 skinparam interfaceBackgroundColor lightgreen
 skinparam interfaceBorderColor black
+skinparam fontSize 10
+skinparam maxMessageSize 60
+skinparam linetype ortho
 
-package "Domain Layer (Core)" <<clean>> {
-    class AccountProfile {
-        -accountId: String
-        -displayName: String
-        -photoUrl: String
-        -locale: String
-        -country: String
-        -timezone: String
-        -privacySettings: PrivacySettings
-        -notificationSettings: NotificationSettings
-        -accessibilityPreferences: AccessibilityPreferences
-        -version: int
-        -etag: String
-    }
+package "Domain Layer" <<clean>> {
+    class AccountProfile
+    class PrivacySettings
+    class NotificationSettings
+    class AccessibilityPreferences
+    enum CaptionFontSize
+    class ProfileUpdated
+    class PrivacySettingsChanged
+    class NotificationPrefsChanged
+    class AccessibilityPrefsChanged
     
-    class PrivacySettings {
-        -subscriptionsPrivate: Boolean
-        -savedPlaylistsPrivate: Boolean
-        -restrictedModeEnabled: Boolean
-    }
-    
-    class NotificationSettings {
-        -emailOptIn: Boolean
-        -pushOptIn: Boolean
-        -marketingOptIn: Boolean
-    }
-    
-    class AccessibilityPreferences {
-        -captionsAlwaysOn: Boolean
-        -autoplayDefault: Boolean
-    }
-    
-    interface ProfileRepository {
-        +findByAccountId(accountId): Optional<AccountProfile>
-        +save(profile): AccountProfile
-        +update(profile): AccountProfile
-        +exists(accountId): boolean
-        +delete(accountId): void
-    }
-    
-    interface EventPublisher {
-        +publishProfileUpdated(event): void
-        +publishPrivacySettingsChanged(event): void
-        +publishNotificationPrefsChanged(event): void
-    }
-    
-    interface CacheService {
-        +cacheProfile(accountId, data): void
-        +getCachedProfile(accountId): String
-        +invalidateProfile(accountId): void
-    }
+    interface ProfileRepository
+    interface EventPublisher
+    interface CacheService
+    interface BlobUriValidator
 }
 
 package "Application Layer" <<clean>> {
-    interface Saga {
-        +execute(): AccountProfile
-        +getSagaId(): String
-        +getSagaType(): String
-    }
+    interface Saga
+    class UpdateProfileSaga
+    class UpdateProfileCommand
+    class UpdatePrivacySettingsCommand
+    class UpdateNotificationSettingsCommand
+    class UpdateAccessibilityPreferencesCommand
+    class GetProfileQuery
+    class GetPrivacySettingsQuery
+    class GetNotificationSettingsQuery
+    class GetAccessibilityPreferencesQuery
     
-    class UpdateProfileSaga {
-        -sagaId: String
-        -command: UpdateProfileCommand
-        -execute(): AccountProfile
-        -compensate(): void
-    }
-    
-    class UpdateProfileCommand {
-        -accountId: String
-        -displayName: String
-        -photoUrl: String
-        -etag: String
-    }
-    
-    class GetProfileQuery {
-        -accountId: String
-    }
-    
-    interface ProfileUseCase {
-        +updateProfile(command): AccountProfile
-        +getProfile(query): AccountProfile
-        +updatePrivacySettings(command): PrivacySettings
-        +getPrivacySettings(query): PrivacySettings
-    }
+    interface ProfileUseCase
+    class ProfileUseCaseImpl
 }
 
 package "Infrastructure Layer" <<clean>> {
-    class ProfileEntity {
-        -id: Long
-        -accountId: String
-        -displayName: String
-        -privacySettings: PrivacySettingsEmbeddable
-        -notificationSettings: NotificationSettingsEmbeddable
-        -accessibilityPreferences: AccessibilityPreferencesEmbeddable
-    }
+    class ProfileEntity
+    class PrivacySettingsEmbeddable
+    class NotificationSettingsEmbeddable
+    class AccessibilityPreferencesEmbeddable
+    class HttpIdempotencyEntity
     
-    class ProfileRepositoryImpl {
-        +findByAccountId(accountId): Optional<AccountProfile>
-        +update(profile): AccountProfile
-    }
+    class ProfileRepositoryImpl
+    class EventPublisherImpl
+    class CacheServiceImpl
+    class BlobUriValidatorImpl
+    class UserCreatedEventHandler
     
-    class EventPublisherImpl {
-        +publishProfileUpdated(event): void
-    }
+    class SecurityConfig
+    class IdempotencyConfig
+    class EventHandlerConfig
     
-    class CacheServiceImpl {
-        +cacheProfile(accountId, data): void
-        +invalidateProfile(accountId): void
-    }
+    note right of ProfileEntity
+        DB: userprofile
+        Schema: user_profile
+        Table: account_profiles
+    end note
     
-    class SecurityConfig {
-        +securityFilterChain(): SecurityFilterChain
-        +jwtAuthConverter(): Converter
-    }
+    note right of HttpIdempotencyEntity
+        Schema: user_profile
+        Table: http_idempotency
+    end note
 }
 
 package "Interface Layer" <<clean>> {
-    class ProfileController {
-        +GET /profiles/{accountId}
-        +PATCH /profiles/{accountId}
-        +GET /profiles/{accountId}/privacy
-        +PUT /profiles/{accountId}/privacy
-        +GET /profiles/{accountId}/notifications
-        +PUT /profiles/{accountId}/notifications
-    }
+    class ProfileController
+    class ServiceGlobalExceptionHandler
 }
 
-' Relationships
+package "Common Domain" <<clean>> {
+    class CorrelationFilter
+    class IdempotencyFilter
+    class EventRouter
+    class JpaHttpIdempotencyRepository
+    class GlobalExceptionHandler
+    class UnitOfWork
+    class Clock
+}
+
+' Core Relationships
 ProfileController --> ProfileUseCase
-ProfileUseCase --> UpdateProfileSaga
+ProfileUseCase <|.. ProfileUseCaseImpl
+ProfileUseCaseImpl --> ProfileRepository
+ProfileUseCaseImpl --> EventPublisher
+ProfileUseCaseImpl --> UnitOfWork
+ProfileUseCaseImpl --> Clock
 UpdateProfileSaga --> ProfileRepository
 UpdateProfileSaga --> EventPublisher
 UpdateProfileSaga --> CacheService
+UpdateProfileSaga --> BlobUriValidator
 
+' Implementations
 ProfileRepository <|.. ProfileRepositoryImpl
 EventPublisher <|.. EventPublisherImpl
 CacheService <|.. CacheServiceImpl
+BlobUriValidator <|.. BlobUriValidatorImpl
 
-' Domain to Infrastructure
-ProfileEntity <-- ProfileRepositoryImpl
+' Infrastructure Mappings
+ProfileRepositoryImpl --> ProfileEntity
+ProfileEntity *-- PrivacySettingsEmbeddable
+ProfileEntity *-- NotificationSettingsEmbeddable
+ProfileEntity *-- AccessibilityPreferencesEmbeddable
+IdempotencyConfig --> HttpIdempotencyEntity
+IdempotencyConfig --> JpaHttpIdempotencyRepository
+
+' Domain Events
+AccountProfile ..> ProfileUpdated
+AccountProfile ..> PrivacySettingsChanged
+AccountProfile ..> NotificationPrefsChanged
+AccountProfile ..> AccessibilityPrefsChanged
+
+' Common Domain
+ProfileController ..> CorrelationFilter
+ProfileController ..> IdempotencyFilter
+EventPublisherImpl --> EventRouter
+ServiceGlobalExceptionHandler --|> GlobalExceptionHandler
+EventRouter --> UserCreatedEventHandler
+EventHandlerConfig --> EventRouter
+UserCreatedEventHandler --> ProfileRepository
+UserCreatedEventHandler --> UnitOfWork
+UserCreatedEventHandler --> Clock
 
 @enduml
