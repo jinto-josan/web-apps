@@ -15,7 +15,7 @@ import java.time.Instant;
  * JPA entity for account profiles.
  */
 @Entity
-@Table(name = "account_profiles", indexes = {
+@Table(name = "account_profiles", schema = "user_profile", indexes = {
     @Index(name = "idx_account_profiles_account_id", columnList = "account_id")
 })
 @Data

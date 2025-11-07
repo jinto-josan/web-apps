@@ -1,8 +1,11 @@
 -- User Profile Service Database Schema
 -- Migration: V2__Create_idempotency_table.sql
 
+-- Ensure schema exists (in case V1 hasn't run)
+CREATE SCHEMA IF NOT EXISTS user_profile;
+
 -- Create http_idempotency table for HTTP idempotency pattern
-CREATE TABLE IF NOT EXISTS http_idempotency (
+CREATE TABLE IF NOT EXISTS user_profile.http_idempotency (
     id BIGSERIAL PRIMARY KEY,
     idempotency_key VARCHAR(128) NOT NULL,
     request_hash BYTEA NOT NULL,
@@ -15,13 +18,13 @@ CREATE TABLE IF NOT EXISTS http_idempotency (
 );
 
 -- Create indexes
-CREATE INDEX IF NOT EXISTS idx_http_idempotency_key ON http_idempotency(idempotency_key);
-CREATE INDEX IF NOT EXISTS idx_http_idempotency_created_at ON http_idempotency(created_at);
+CREATE INDEX IF NOT EXISTS idx_http_idempotency_key ON user_profile.http_idempotency(idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_http_idempotency_created_at ON user_profile.http_idempotency(created_at);
 
 -- Add comments
-COMMENT ON TABLE http_idempotency IS 'HTTP idempotency records for safe request retries';
-COMMENT ON COLUMN http_idempotency.idempotency_key IS 'Idempotency key from Idempotency-Key header';
-COMMENT ON COLUMN http_idempotency.request_hash IS 'SHA-256 hash of request signature (method + URI + body)';
-COMMENT ON COLUMN http_idempotency.response_status IS 'HTTP status code of cached response';
-COMMENT ON COLUMN http_idempotency.response_body IS 'Cached response body bytes';
+COMMENT ON TABLE user_profile.http_idempotency IS 'HTTP idempotency records for safe request retries';
+COMMENT ON COLUMN user_profile.http_idempotency.idempotency_key IS 'Idempotency key from Idempotency-Key header';
+COMMENT ON COLUMN user_profile.http_idempotency.request_hash IS 'SHA-256 hash of request signature (method + URI + body)';
+COMMENT ON COLUMN user_profile.http_idempotency.response_status IS 'HTTP status code of cached response';
+COMMENT ON COLUMN user_profile.http_idempotency.response_body IS 'Cached response body bytes';
 

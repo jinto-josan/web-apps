@@ -1,8 +1,11 @@
 -- User Profile Service Database Schema
 -- Migration: V1__Create_user-profile-service_tables.sql
 
+-- Create schema
+CREATE SCHEMA IF NOT EXISTS user_profile;
+
 -- Create account_profiles table
-CREATE TABLE IF NOT EXISTS account_profiles (
+CREATE TABLE IF NOT EXISTS user_profile.account_profiles (
     id BIGSERIAL PRIMARY KEY,
     account_id VARCHAR(26) NOT NULL UNIQUE,
     display_name VARCHAR(100),
@@ -39,17 +42,15 @@ CREATE TABLE IF NOT EXISTS account_profiles (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by VARCHAR(26),
-    etag VARCHAR(50),
-    
-    CONSTRAINT fk_account_profiles_account FOREIGN KEY (account_id) REFERENCES identity_auth.users(id)
+    etag VARCHAR(50)
 );
 
 -- Create indexes
-CREATE INDEX IF NOT EXISTS idx_account_profiles_account_id ON account_profiles(account_id);
-CREATE INDEX IF NOT EXISTS idx_account_profiles_updated_at ON account_profiles(updated_at);
+CREATE INDEX IF NOT EXISTS idx_account_profiles_account_id ON user_profile.account_profiles(account_id);
+CREATE INDEX IF NOT EXISTS idx_account_profiles_updated_at ON user_profile.account_profiles(updated_at);
 
 -- Add comments
-COMMENT ON TABLE account_profiles IS 'User account profiles with preferences and settings';
-COMMENT ON COLUMN account_profiles.account_id IS 'ULID of the user account';
-COMMENT ON COLUMN account_profiles.etag IS 'Optimistic locking version identifier';
-COMMENT ON COLUMN account_profiles.version IS 'Entity version for optimistic locking';
+COMMENT ON TABLE user_profile.account_profiles IS 'User account profiles with preferences and settings';
+COMMENT ON COLUMN user_profile.account_profiles.account_id IS 'ULID of the user account';
+COMMENT ON COLUMN user_profile.account_profiles.etag IS 'Optimistic locking version identifier';
+COMMENT ON COLUMN user_profile.account_profiles.version IS 'Entity version for optimistic locking';

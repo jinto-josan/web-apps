@@ -1,0 +1,46 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/userprofile_test
+    username: test
+    password: test
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  
+  flyway:
+    enabled: false
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080
+  
+  kafka:
+    enabled: false
+  
+azure:
+  servicebus:
+    enabled: false
+  appconfig:
+    enabled: false
+  keyvault:
+    enabled: false
+
+app:
+  identity-auth-service:
+    url: http://localhost:8080
+
+logging:
+  level:
+    root: INFO
+    com.youtube.userprofileservice: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate: WARN
+
