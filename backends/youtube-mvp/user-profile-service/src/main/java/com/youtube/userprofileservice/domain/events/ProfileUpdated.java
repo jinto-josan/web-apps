@@ -29,5 +29,10 @@ public final class ProfileUpdated extends DomainEvent {
         this.updatedBy = updatedBy;
         this.fieldsChanged = fieldsChanged;
     }
+    
+    @Override
+    public String getEventType() {
+        return "profile.updated";
+    }
 }
 

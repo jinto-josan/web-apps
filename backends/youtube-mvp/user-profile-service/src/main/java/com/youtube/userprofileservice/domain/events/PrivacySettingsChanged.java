@@ -32,5 +32,10 @@ public final class PrivacySettingsChanged extends DomainEvent {
         this.settingChanged = settingChanged;
         this.newValue = newValue;
     }
+    
+    @Override
+    public String getEventType() {
+        return "privacy.settings.changed";
+    }
 }
 

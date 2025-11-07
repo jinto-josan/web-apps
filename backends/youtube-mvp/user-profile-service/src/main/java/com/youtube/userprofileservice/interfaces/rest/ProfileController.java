@@ -1,5 +1,6 @@
 package com.youtube.userprofileservice.interfaces.rest;
 
+import com.youtube.common.domain.services.correlation.CorrelationContext;
 import com.youtube.userprofileservice.application.commands.*;
 import com.youtube.userprofileservice.application.queries.*;
 import com.youtube.userprofileservice.application.usecases.ProfileUseCase;
@@ -8,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +25,9 @@ import javax.validation.constraints.NotBlank;
 /**
  * REST controller for profile management.
  * Follows RESTful principles with proper HTTP methods and status codes.
+ * Includes correlation ID tracking and structured logging.
  */
+@Slf4j
 @RestController
 @RequestMapping("/profiles")
 @RequiredArgsConstructor
@@ -41,15 +45,28 @@ public class ProfileController {
             @PathVariable @NotBlank String accountId,
             @AuthenticationPrincipal Jwt jwt) {
         
-        GetProfileQuery query = GetProfileQuery.builder()
-                .accountId(accountId)
-                .build();
+        String correlationId = CorrelationContext.getCorrelationId().orElse("unknown");
+        String userId = jwt.getClaimAsString("sub");
+        log.info("GET /profiles/{} - userId: {}, correlationId: {}", accountId, userId, correlationId);
         
-        AccountProfile profile = profileUseCase.getProfile(query);
-        
-        return ResponseEntity.ok()
-                .header(HttpHeaders.ETAG, profile.getEtag())
-                .body(profile);
+        try {
+            GetProfileQuery query = GetProfileQuery.builder()
+                    .accountId(accountId)
+                    .build();
+            
+            AccountProfile profile = profileUseCase.getProfile(query);
+            
+            log.debug("Profile retrieved successfully - accountId: {}, correlationId: {}", 
+                    accountId, correlationId);
+            
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.ETAG, profile.getEtag())
+                    .body(profile);
+        } catch (Exception e) {
+            log.error("Failed to get profile - accountId: {}, userId: {}, correlationId: {}", 
+                    accountId, userId, correlationId, e);
+            throw e;
+        }
     }
     
     @PatchMapping("/{accountId}")
@@ -62,15 +79,28 @@ public class ProfileController {
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
             @AuthenticationPrincipal Jwt jwt) {
         
-        command.setAccountId(accountId);
-        command.setEtag(ifMatch);
-        
+        String correlationId = CorrelationContext.getCorrelationId().orElse("unknown");
         String userId = jwt.getClaimAsString("sub");
-        AccountProfile updated = profileUseCase.updateProfile(command, userId);
+        log.info("PATCH /profiles/{} - userId: {}, correlationId: {}, ifMatch: {}", 
+                accountId, userId, correlationId, ifMatch);
         
-        return ResponseEntity.ok()
-                .header(HttpHeaders.ETAG, updated.getEtag())
-                .body(updated);
+        try {
+            command.setAccountId(accountId);
+            command.setEtag(ifMatch);
+            
+            AccountProfile updated = profileUseCase.updateProfile(command, userId);
+            
+            log.info("Profile updated successfully - accountId: {}, correlationId: {}", 
+                    accountId, correlationId);
+            
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.ETAG, updated.getEtag())
+                    .body(updated);
+        } catch (Exception e) {
+            log.error("Failed to update profile - accountId: {}, userId: {}, correlationId: {}", 
+                    accountId, userId, correlationId, e);
+            throw e;
+        }
     }
     
     @GetMapping("/{accountId}/privacy")
@@ -79,6 +109,10 @@ public class ProfileController {
     public ResponseEntity<PrivacySettings> getPrivacySettings(
             @PathVariable @NotBlank String accountId,
             @AuthenticationPrincipal Jwt jwt) {
+        
+        String correlationId = CorrelationContext.getCorrelationId().orElse("unknown");
+        String userId = jwt.getClaimAsString("sub");
+        log.debug("GET /profiles/{}/privacy - userId: {}, correlationId: {}", accountId, userId, correlationId);
         
         GetPrivacySettingsQuery query = GetPrivacySettingsQuery.builder()
                 .accountId(accountId)
@@ -97,10 +131,16 @@ public class ProfileController {
             @RequestBody @Valid UpdatePrivacySettingsCommand command,
             @AuthenticationPrincipal Jwt jwt) {
         
+        String correlationId = CorrelationContext.getCorrelationId().orElse("unknown");
+        String userId = jwt.getClaimAsString("sub");
+        log.info("PUT /profiles/{}/privacy - userId: {}, correlationId: {}", accountId, userId, correlationId);
+        
         command.setAccountId(accountId);
         
-        String userId = jwt.getClaimAsString("sub");
         PrivacySettings updated = profileUseCase.updatePrivacySettings(command, userId);
+        
+        log.debug("Privacy settings updated successfully - accountId: {}, correlationId: {}", 
+                accountId, correlationId);
         
         return ResponseEntity.ok(updated);
     }
@@ -111,6 +151,10 @@ public class ProfileController {
     public ResponseEntity<NotificationSettings> getNotificationSettings(
             @PathVariable @NotBlank String accountId,
             @AuthenticationPrincipal Jwt jwt) {
+        
+        String correlationId = CorrelationContext.getCorrelationId().orElse("unknown");
+        String userId = jwt.getClaimAsString("sub");
+        log.debug("GET /profiles/{}/notifications - userId: {}, correlationId: {}", accountId, userId, correlationId);
         
         GetNotificationSettingsQuery query = GetNotificationSettingsQuery.builder()
                 .accountId(accountId)
@@ -129,10 +173,16 @@ public class ProfileController {
             @RequestBody @Valid UpdateNotificationSettingsCommand command,
             @AuthenticationPrincipal Jwt jwt) {
         
+        String correlationId = CorrelationContext.getCorrelationId().orElse("unknown");
+        String userId = jwt.getClaimAsString("sub");
+        log.info("PUT /profiles/{}/notifications - userId: {}, correlationId: {}", accountId, userId, correlationId);
+        
         command.setAccountId(accountId);
         
-        String userId = jwt.getClaimAsString("sub");
         NotificationSettings updated = profileUseCase.updateNotificationSettings(command, userId);
+        
+        log.debug("Notification settings updated successfully - accountId: {}, correlationId: {}", 
+                accountId, correlationId);
         
         return ResponseEntity.ok(updated);
     }

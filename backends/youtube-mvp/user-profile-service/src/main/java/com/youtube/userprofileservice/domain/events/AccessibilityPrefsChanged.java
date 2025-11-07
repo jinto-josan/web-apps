@@ -32,5 +32,10 @@ public final class AccessibilityPrefsChanged extends DomainEvent {
         this.preferenceChanged = preferenceChanged;
         this.newValue = newValue;
     }
+    
+    @Override
+    public String getEventType() {
+        return "accessibility.prefs.changed";
+    }
 }
 

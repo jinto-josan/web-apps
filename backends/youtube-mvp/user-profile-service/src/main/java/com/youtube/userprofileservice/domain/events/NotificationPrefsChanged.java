@@ -32,5 +32,10 @@ public final class NotificationPrefsChanged extends DomainEvent {
         this.preferenceChanged = preferenceChanged;
         this.newValue = newValue;
     }
+    
+    @Override
+    public String getEventType() {
+        return "notification.prefs.changed";
+    }
 }
 
