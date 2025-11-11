@@ -1,7 +1,7 @@
 package com.youtube.userprofileservice.infrastructure.config;
 
 import com.youtube.common.domain.events.EventRouter;
-import com.youtube.common.domain.events.UserCreatedEvent;
+import com.youtube.userprofileservice.infrastructure.messaging.PhotoUploadedEventHandler;
 import com.youtube.userprofileservice.infrastructure.messaging.UserCreatedEventHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,12 +14,15 @@ import org.springframework.context.annotation.Configuration;
 public class EventHandlerConfig {
     
     /**
-     * Registers the UserCreatedEventHandler with the EventRouter.
+     * Registers event handlers with the EventRouter.
      */
     @Bean
-    public EventRouter eventRouter(UserCreatedEventHandler userCreatedEventHandler) {
+    public EventRouter eventRouter(
+            UserCreatedEventHandler userCreatedEventHandler,
+            PhotoUploadedEventHandler photoUploadedEventHandler) {
         EventRouter router = new EventRouter();
         router.registerHandler("user.created", userCreatedEventHandler);
+        router.registerHandler("photo.uploaded", photoUploadedEventHandler);
         return router;
     }
 }

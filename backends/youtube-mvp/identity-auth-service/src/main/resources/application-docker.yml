@@ -45,6 +45,14 @@ app:
         discoveryUrl: https://login.microsoftonline.com/29e37b86-b53e-4bc1-8bf5-90f4a05204b2/v2.0/.well-known/openid-configuration
         audiences:
           - api://5b3ef65b-9c29-47a9-8d5b-f2032ee3e8e7
+
+#Azure app configuration
+azure:
+  appconfig:
+    enabled: true
+    endpoint: https://yt-common-config.azconfig.io
+
+
 # Domain Event Publisher Configuration (background service)
 outbox:
   domain-event-publisher:

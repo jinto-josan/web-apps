@@ -9,12 +9,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 /**
  * Main application class for User Profile Service.
  */
-@SpringBootApplication(scanBasePackages = {
-    "com.youtube.userprofileservice",
-    "com.youtube.common"
-})
-@EntityScan(basePackages = "com.youtube.userprofileservice.infrastructure.persistence.entity")
-@EnableJpaRepositories(basePackages = "com.youtube.userprofileservice.infrastructure.persistence.repository")
+@SpringBootApplication
 @EnableCaching
 public class UserProfileServiceApplication {
 

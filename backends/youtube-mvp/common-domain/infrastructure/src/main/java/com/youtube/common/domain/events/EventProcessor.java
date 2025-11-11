@@ -5,8 +5,6 @@ import com.youtube.common.domain.core.DomainEvent;
 import com.youtube.common.domain.core.UnitOfWork;
 import com.youtube.common.domain.services.correlation.CorrelationContext;
 import com.youtube.common.domain.events.inbox.InboxRepository;
-import com.youtube.common.domain.events.outbox.OutboxRepository;
-import com.youtube.common.domain.repository.Repository;
 import com.youtube.common.domain.services.tracing.TraceProvider;
 import io.micrometer.tracing.Span;
 import org.slf4j.Logger;
@@ -75,8 +73,11 @@ public class EventProcessor {
             unitOfWork.begin();
             
             try {
+                // Get event type from message properties for proper deserialization
+                String eventType = (String) message.getApplicationProperties().get("eventType");
+                
                 // Deserialize event
-                DomainEvent event = deserializeEvent(message.getBody().toString());
+                DomainEvent event = deserializeEvent(message.getBody().toString(), eventType);
                 
                 // Resolve handler
                 EventRouter.EventHandler<DomainEvent> handler = eventRouter.resolveHandler(event);
@@ -115,13 +116,95 @@ public class EventProcessor {
         }
     }
     
-    private DomainEvent deserializeEvent(String payload) {
+    private DomainEvent deserializeEvent(String payload, String eventType) {
         try {
-            // This is a simplified implementation
-            // In a real system, you'd need proper event type resolution
-            return objectMapper.readValue(payload, DomainEvent.class);
+            // If eventType is provided, try to resolve the concrete event class
+            if (eventType != null && !eventType.isBlank()) {
+                Class<? extends DomainEvent> eventClass = resolveEventClass(eventType);
+                if (eventClass != null) {
+                    return objectMapper.readValue(payload, eventClass);
+                }
+                
+                // If not found in common-domain, try to deserialize using ObjectMapper's
+                // registered subtypes. ObjectMapper will use the registered subtypes
+                // if the JSON contains type information or if we use TypeReference.
+                // For now, try to deserialize as the registered subtype.
+                // Note: This requires services to register subtypes via ObjectMapper.registerSubtypes()
+            }
+            
+            // Fallback: Try to deserialize as generic DomainEvent
+            // This will work if ObjectMapper has registered subtypes and can infer the type
+            // from the JSON structure or if @JsonTypeInfo is present on DomainEvent
+            try {
+                return objectMapper.readValue(payload, DomainEvent.class);
+            } catch (Exception e) {
+                // If generic deserialization fails, try using a TypeReference approach
+                // or throw a more descriptive error
+                throw new RuntimeException(
+                    "Failed to deserialize event. EventType: " + eventType + 
+                    ". Make sure the event class is registered via ObjectMapper.registerSubtypes() " +
+                    "or add @JsonTypeInfo to DomainEvent base class.", e);
+            }
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to deserialize event", e);
+            throw new RuntimeException("Failed to deserialize event: " + eventType, e);
+        }
+    }
+    
+    /**
+     * Resolves the concrete event class from event type.
+     * Uses reflection to load classes from common-domain event contracts.
+     * For service-specific events, services should register them via ObjectMapper.registerSubtypes()
+     * and the ObjectMapper will handle deserialization via registered subtypes.
+     * 
+     * @param eventType the event type string
+     * @return the event class, or null if not found
+     */
+    @SuppressWarnings("unchecked")
+    private Class<? extends DomainEvent> resolveEventClass(String eventType) {
+        try {
+            // Try to resolve from common-domain event contracts first
+            String className = switch (eventType) {
+                case "user.created" -> "com.youtube.common.domain.events.UserCreatedEvent";
+                case "channel.created" -> "com.youtube.common.domain.events.ChannelCreatedEvent";
+                case "video.published" -> "com.youtube.common.domain.events.VideoPublishedEvent";
+                default -> null;
+            };
+            
+            if (className != null) {
+                Class<?> clazz = Class.forName(className);
+                if (DomainEvent.class.isAssignableFrom(clazz)) {
+                    return (Class<? extends DomainEvent>) clazz;
+                }
+            }
+            
+            // For service-specific events, try to load by fully qualified class name using reflection
+            // This allows services to define events without modifying common-domain
+            // Services can register their event classes via ObjectMapper.registerSubtypes()
+            // and the fallback deserialization will use those registered subtypes
+            // 
+            // Example mappings for service-specific events (can be extended):
+            String serviceSpecificClassName = switch (eventType) {
+                case "photo.uploaded" -> "com.youtube.userprofileservice.domain.events.PhotoUploadedEvent";
+                default -> null;
+            };
+            
+            if (serviceSpecificClassName != null) {
+                try {
+                    Class<?> clazz = Class.forName(serviceSpecificClassName);
+                    if (DomainEvent.class.isAssignableFrom(clazz)) {
+                        return (Class<? extends DomainEvent>) clazz;
+                    }
+                } catch (ClassNotFoundException e) {
+                    log.debug("Service-specific event class not found: {}", serviceSpecificClassName);
+                }
+            }
+            
+            return null;
+        } catch (ClassNotFoundException e) {
+            log.debug("Event class not found for type: {} (will try ObjectMapper subtypes)", eventType);
+            return null;
         }
     }
 }

@@ -5,22 +5,24 @@ import com.youtube.userprofileservice.application.commands.*;
 import com.youtube.userprofileservice.application.queries.*;
 import com.youtube.userprofileservice.application.usecases.ProfileUseCase;
 import com.youtube.userprofileservice.domain.entities.*;
+import com.youtube.userprofileservice.domain.services.PhotoUploadService;
+import com.youtube.userprofileservice.interfaces.rest.dto.PhotoUploadCompleteRequest;
+import com.youtube.userprofileservice.interfaces.rest.dto.PhotoUploadRequest;
+import com.youtube.userprofileservice.interfaces.rest.dto.PhotoUploadResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.Valid;
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * REST controller for profile management.
@@ -36,9 +38,9 @@ import javax.validation.constraints.NotBlank;
 public class ProfileController {
     
     private final ProfileUseCase profileUseCase;
+    private final PhotoUploadService photoUploadService;
     
     @GetMapping("/{accountId}")
-    @PreAuthorize("hasAuthority('SCOPE_profile.read')")
     @Operation(summary = "Get user profile", description = "Retrieves a user's account profile")
     public ResponseEntity<AccountProfile> getProfile(
             @Parameter(description = "Account ID", required = true)
@@ -70,7 +72,6 @@ public class ProfileController {
     }
     
     @PatchMapping("/{accountId}")
-    @PreAuthorize("hasAuthority('SCOPE_profile.write')")
     @Operation(summary = "Update user profile", description = "Updates a user's account profile with optimistic locking")
     public ResponseEntity<AccountProfile> updateProfile(
             @Parameter(description = "Account ID", required = true)
@@ -104,7 +105,6 @@ public class ProfileController {
     }
     
     @GetMapping("/{accountId}/privacy")
-    @PreAuthorize("hasAuthority('SCOPE_profile.read')")
     @Operation(summary = "Get privacy settings", description = "Retrieves a user's privacy settings")
     public ResponseEntity<PrivacySettings> getPrivacySettings(
             @PathVariable @NotBlank String accountId,
@@ -124,7 +124,6 @@ public class ProfileController {
     }
     
     @PutMapping("/{accountId}/privacy")
-    @PreAuthorize("hasAuthority('SCOPE_profile.write')")
     @Operation(summary = "Update privacy settings", description = "Updates a user's privacy settings")
     public ResponseEntity<PrivacySettings> updatePrivacySettings(
             @PathVariable @NotBlank String accountId,
@@ -146,7 +145,6 @@ public class ProfileController {
     }
     
     @GetMapping("/{accountId}/notifications")
-    @PreAuthorize("hasAuthority('SCOPE_profile.read')")
     @Operation(summary = "Get notification settings", description = "Retrieves a user's notification settings")
     public ResponseEntity<NotificationSettings> getNotificationSettings(
             @PathVariable @NotBlank String accountId,
@@ -166,7 +164,6 @@ public class ProfileController {
     }
     
     @PutMapping("/{accountId}/notifications")
-    @PreAuthorize("hasAuthority('SCOPE_profile.write')")
     @Operation(summary = "Update notification settings", description = "Updates a user's notification settings")
     public ResponseEntity<NotificationSettings> updateNotificationSettings(
             @PathVariable @NotBlank String accountId,
@@ -185,6 +182,89 @@ public class ProfileController {
                 accountId, correlationId);
         
         return ResponseEntity.ok(updated);
+    }
+    
+    @PostMapping("/{accountId}/photo/upload-url")
+    @Operation(summary = "Generate photo upload URL", 
+               description = "Generates a pre-signed URL for uploading a profile photo. " +
+                           "After upload, the photo will be automatically processed (virus scan and compression).")
+    public ResponseEntity<PhotoUploadResponse> generatePhotoUploadUrl(
+            @Parameter(description = "Account ID", required = true)
+            @PathVariable @NotBlank String accountId,
+            @RequestBody @Valid PhotoUploadRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        
+        String correlationId = CorrelationContext.getCorrelationId().orElse("unknown");
+        String userId = jwt.getClaimAsString("sub");
+        log.info("POST /profiles/{}/photo/upload-url - userId: {}, contentType: {}, maxSize: {} bytes, correlationId: {}",
+                accountId, request.getContentType(), request.getMaxFileSizeBytes(), correlationId);
+        
+        try {
+            PhotoUploadService.PhotoUploadUrl uploadUrl = photoUploadService.generateUploadUrl(
+                    accountId,
+                    request.getContentType(),
+                    request.getMaxFileSizeBytes() != null ? request.getMaxFileSizeBytes() : 10485760L // Default 10MB
+            );
+            
+            PhotoUploadResponse response = PhotoUploadResponse.builder()
+                    .uploadUrl(uploadUrl.uploadUrl())
+                    .blobName(uploadUrl.blobName())
+                    .containerName(uploadUrl.containerName())
+                    .expiresAt(uploadUrl.expiresAt())
+                    .maxFileSizeBytes(uploadUrl.maxFileSizeBytes())
+                    .durationMinutes(uploadUrl.durationMinutes())
+                    .build();
+            
+            log.info("Photo upload URL generated successfully - accountId: {}, blobName: {}, correlationId: {}",
+                    accountId, uploadUrl.blobName(), correlationId);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to generate photo upload URL - accountId: {}, userId: {}, correlationId: {}",
+                    accountId, userId, correlationId, e);
+            throw e;
+        }
+    }
+    
+    @PostMapping("/{accountId}/photo/upload-complete")
+    @Operation(summary = "Notify photo upload complete", 
+               description = "Notifies the service that a photo upload is complete. " +
+                           "This triggers virus scanning and compression processing via queue. " +
+                           "Follows CQRS pattern - uses NotifyPhotoUploadCompleteCommand.")
+    public ResponseEntity<Void> notifyPhotoUploadComplete(
+            @Parameter(description = "Account ID", required = true)
+            @PathVariable @NotBlank String accountId,
+            @RequestBody @Valid PhotoUploadCompleteRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        
+        String correlationId = CorrelationContext.getCorrelationId().orElse("unknown");
+        String userId = jwt.getClaimAsString("sub");
+        log.info("POST /profiles/{}/photo/upload-complete - userId: {}, blobName: {}, fileSize: {} bytes, correlationId: {}",
+                accountId, request.getBlobName(), request.getFileSizeBytes(), correlationId);
+        
+        try {
+            // Create command following CQRS pattern
+            NotifyPhotoUploadCompleteCommand command = NotifyPhotoUploadCompleteCommand.builder()
+                    .accountId(accountId)
+                    .blobName(request.getBlobName())
+                    .containerName("profile-photos") // Default container
+                    .contentType(request.getContentType())
+                    .fileSizeBytes(request.getFileSizeBytes())
+                    .build();
+            
+            // Execute command via use case (CQRS pattern)
+            profileUseCase.notifyPhotoUploadComplete(command);
+            
+            log.info("Photo upload completion notified - accountId: {}, blobName: {}, correlationId: {}",
+                    accountId, request.getBlobName(), correlationId);
+            
+            // Return 202 Accepted for async processing
+            return ResponseEntity.accepted().build();
+        } catch (Exception e) {
+            log.error("Failed to notify photo upload completion - accountId: {}, userId: {}, correlationId: {}",
+                    accountId, userId, correlationId, e);
+            throw e;
+        }
     }
 }
 

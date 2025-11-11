@@ -3,6 +3,7 @@ package com.youtube.userprofileservice.application.usecases;
 import com.youtube.common.domain.core.Clock;
 import com.youtube.common.domain.core.UnitOfWork;
 import com.youtube.common.domain.events.EventPublisher;
+import com.youtube.common.domain.error.ConflictException;
 import com.youtube.common.domain.services.correlation.CorrelationContext;
 import com.youtube.userprofileservice.application.commands.*;
 import com.youtube.userprofileservice.application.queries.*;
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,16 +30,19 @@ public class ProfileUseCaseImpl implements ProfileUseCase {
     private final EventPublisher eventPublisher;
     private final UnitOfWork unitOfWork;
     private final Clock clock;
+    private final com.youtube.userprofileservice.infrastructure.services.PhotoProcessingQueueSender photoProcessingQueueSender;
     
     public ProfileUseCaseImpl(
             ProfileRepository profileRepository,
             EventPublisher eventPublisher,
             UnitOfWork unitOfWork,
-            Clock clock) {
+            Clock clock,
+            com.youtube.userprofileservice.infrastructure.services.PhotoProcessingQueueSender photoProcessingQueueSender) {
         this.profileRepository = profileRepository;
         this.eventPublisher = eventPublisher;
         this.unitOfWork = unitOfWork;
         this.clock = clock;
+        this.photoProcessingQueueSender = photoProcessingQueueSender;
     }
     
     @Override
@@ -60,7 +65,7 @@ public class ProfileUseCaseImpl implements ProfileUseCase {
             if (command.getEtag() != null && !command.getEtag().equals(profile.getEtag())) {
                 log.warn("ETag mismatch - accountId: {}, expected: {}, actual: {}, correlationId: {}", 
                         command.getAccountId(), command.getEtag(), profile.getEtag(), correlationId);
-                throw new com.youtube.common.domain.ConflictException("ETag mismatch");
+                throw new ConflictException("ETag mismatch");
             }
             
             Instant now = clock.now();
@@ -141,11 +146,11 @@ public class ProfileUseCaseImpl implements ProfileUseCase {
             
             Instant now = clock.now();
             PrivacySettings updatedSettings = PrivacySettings.builder()
-                    .subscriptionsPrivacy(command.getSubscriptionsPrivacy())
-                    .savedPlaylistsPrivacy(command.getSavedPlaylistsPrivacy())
-                    .restrictedMode(command.getRestrictedMode())
-                    .watchHistoryPrivacy(command.getWatchHistoryPrivacy())
-                    .likeHistoryPrivacy(command.getLikeHistoryPrivacy())
+                    .subscriptionsPrivate(command.getSubscriptionsPrivate())
+                    .savedPlaylistsPrivate(command.getSavedPlaylistsPrivate())
+                    .restrictedModeEnabled(command.getRestrictedModeEnabled())
+                    .watchHistoryPrivate(command.getWatchHistoryPrivate())
+                    .likeHistoryPrivate(command.getLikeHistoryPrivate())
                     .build();
             
             AccountProfile updated = profile.withPrivacySettings(updatedSettings, now, updatedBy, 
@@ -153,10 +158,12 @@ public class ProfileUseCaseImpl implements ProfileUseCase {
             
             AccountProfile saved = profileRepository.update(updated);
             
-            // Publish domain event
+            // Publish domain event - simplified for now
             PrivacySettingsChanged event = new PrivacySettingsChanged(
                     saved.getAccountId(),
-                    updatedBy
+                    updatedBy,
+                    "privacy_settings",
+                    true
             );
             eventPublisher.publishAll(List.of(event));
             log.debug("Published PrivacySettingsChanged event - accountId: {}, correlationId: {}", 
@@ -194,8 +201,11 @@ public class ProfileUseCaseImpl implements ProfileUseCase {
             Instant now = clock.now();
             NotificationSettings updatedSettings = NotificationSettings.builder()
                     .emailOptIn(command.getEmailOptIn())
-                    .pushNotifications(command.getPushNotifications())
-                    .marketingCommunications(command.getMarketingCommunications())
+                    .pushOptIn(command.getPushOptIn())
+                    .marketingOptIn(command.getMarketingOptIn())
+                    .channelPreferences(command.getChannelPreferences())
+                    .emailPreferences(command.getEmailPreferences())
+                    .pushPreferences(command.getPushPreferences())
                     .build();
             
             AccountProfile updated = profile.withNotificationSettings(updatedSettings, now, updatedBy, 
@@ -203,10 +213,12 @@ public class ProfileUseCaseImpl implements ProfileUseCase {
             
             AccountProfile saved = profileRepository.update(updated);
             
-            // Publish domain event
+            // Publish domain event - simplified for now
             NotificationPrefsChanged event = new NotificationPrefsChanged(
                     saved.getAccountId(),
-                    updatedBy
+                    updatedBy,
+                    "notification_settings",
+                    true
             );
             eventPublisher.publishAll(List.of(event));
             log.debug("Published NotificationPrefsChanged event - accountId: {}, correlationId: {}", 
@@ -243,9 +255,12 @@ public class ProfileUseCaseImpl implements ProfileUseCase {
             
             Instant now = clock.now();
             AccessibilityPreferences updatedPrefs = AccessibilityPreferences.builder()
-                    .captionFontSize(command.getCaptionFontSize())
-                    .highContrast(command.getHighContrast())
-                    .reducedMotion(command.getReducedMotion())
+                    .captionsAlwaysOn(command.getCaptionsAlwaysOn())
+                    .captionsLanguage(command.getCaptionsLanguage())
+                    .autoplayDefault(command.getAutoplayDefault())
+                    .autoplayOnHome(command.getAutoplayOnHome())
+                    .captionsFontSize(command.getCaptionsFontSize())
+                    .captionsBackgroundOpacity(command.getCaptionsBackgroundOpacity())
                     .build();
             
             AccountProfile updated = profile.withAccessibilityPreferences(updatedPrefs, now, updatedBy, 
@@ -253,10 +268,12 @@ public class ProfileUseCaseImpl implements ProfileUseCase {
             
             AccountProfile saved = profileRepository.update(updated);
             
-            // Publish domain event
+            // Publish domain event - simplified for now
             AccessibilityPrefsChanged event = new AccessibilityPrefsChanged(
                     saved.getAccountId(),
-                    updatedBy
+                    updatedBy,
+                    "accessibility_preferences",
+                    "updated"
             );
             eventPublisher.publishAll(List.of(event));
             log.debug("Published AccessibilityPrefsChanged event - accountId: {}, correlationId: {}", 
@@ -337,6 +354,49 @@ public class ProfileUseCaseImpl implements ProfileUseCase {
                 });
         
         return profile.getAccessibilityPreferences();
+    }
+    
+    @Override
+    public void notifyPhotoUploadComplete(NotifyPhotoUploadCompleteCommand command) {
+        String correlationId = CorrelationContext.getCorrelationId().orElse("unknown");
+        log.info("Notifying photo upload complete - accountId: {}, blobName: {}, fileSize: {} bytes, correlationId: {}",
+                command.getAccountId(), command.getBlobName(), command.getFileSizeBytes(), correlationId);
+        
+        // Validate command
+        if (command.getAccountId() == null || command.getAccountId().isBlank()) {
+            throw new IllegalArgumentException("Account ID is required");
+        }
+        if (command.getBlobName() == null || command.getBlobName().isBlank()) {
+            throw new IllegalArgumentException("Blob name is required");
+        }
+        if (command.getContentType() == null || command.getContentType().isBlank()) {
+            throw new IllegalArgumentException("Content type is required");
+        }
+        if (command.getFileSizeBytes() == null || command.getFileSizeBytes() <= 0) {
+            throw new IllegalArgumentException("File size must be greater than 0");
+        }
+        
+        // Verify profile exists (optional validation - could be removed if not needed)
+        boolean profileExists = profileRepository.exists(command.getAccountId());
+        if (!profileExists) {
+            log.warn("Profile not found for photo upload notification - accountId: {}, correlationId: {}",
+                    command.getAccountId(), correlationId);
+            // Note: We might still want to process the photo even if profile doesn't exist yet
+            // This depends on business requirements
+        }
+        
+        // Send event to processing queue (asynchronous processing)
+        // This is a fire-and-forget operation - the queue listener will handle processing
+        photoProcessingQueueSender.sendPhotoUploadedMessage(
+                command.getAccountId(),
+                command.getBlobName(),
+                command.getContainerName() != null ? command.getContainerName() : "profile-photos",
+                command.getContentType(),
+                command.getFileSizeBytes()
+        );
+        
+        log.info("Photo upload completion notification sent - accountId: {}, blobName: {}, correlationId: {}",
+                command.getAccountId(), command.getBlobName(), correlationId);
     }
     
     private String generateEtag(int version, Instant timestamp) {

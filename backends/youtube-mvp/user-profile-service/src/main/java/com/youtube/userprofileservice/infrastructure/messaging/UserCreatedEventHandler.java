@@ -5,7 +5,6 @@ import com.youtube.common.domain.core.DomainEvent;
 import com.youtube.common.domain.core.UnitOfWork;
 import com.youtube.common.domain.events.EventRouter;
 import com.youtube.common.domain.events.UserCreatedEvent;
-import com.youtube.common.domain.shared.valueobjects.UserId;
 import com.youtube.userprofileservice.domain.entities.AccountProfile;
 import com.youtube.userprofileservice.domain.repositories.ProfileRepository;
 import lombok.extern.slf4j.Slf4j;

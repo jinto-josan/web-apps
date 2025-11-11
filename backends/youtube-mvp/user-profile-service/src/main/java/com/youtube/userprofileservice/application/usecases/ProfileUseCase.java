@@ -22,6 +22,14 @@ public interface ProfileUseCase {
     
     AccessibilityPreferences updateAccessibilityPreferences(UpdateAccessibilityPreferencesCommand command, String updatedBy);
     
+    /**
+     * Notifies that a photo upload is complete and triggers processing.
+     * This is a command that initiates asynchronous processing (virus scan, compression).
+     * 
+     * @param command the notification command
+     */
+    void notifyPhotoUploadComplete(NotifyPhotoUploadCompleteCommand command);
+    
     // Read operations
     AccountProfile getProfile(GetProfileQuery query);
     

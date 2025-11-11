@@ -7,7 +7,7 @@ import com.youtube.userprofileservice.domain.repositories.ProfileRepository;
 import com.youtube.userprofileservice.domain.services.EventPublisher;
 import com.youtube.userprofileservice.domain.services.CacheService;
 import com.youtube.userprofileservice.domain.services.BlobUriValidator;
-import com.youtube.common.domain.ConflictException;
+import com.youtube.common.domain.error.ConflictException;
 
 import java.time.Instant;
 import java.util.Arrays;

@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: user-profile-postgres
+    environment:
+      POSTGRES_DB: userprofile
+      POSTGRES_USER: userprofile_user
+      POSTGRES_PASSWORD: userprofile_user
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../.local-setup/INIT_DBS.sql:/docker-entrypoint-initdb.d/INIT_DBS.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U userprofile_user -d userprofile"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: user-profile-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  user-profile-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: user-profile-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      # Database Configuration
+      DATABASE_URL: jdbc:postgresql://postgres:5432/userprofile
+      DATABASE_USERNAME: userprofile_user
+      DATABASE_PASSWORD: userprofile_user
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      
+      # JWT Configuration
+      JWT_ISSUER_URI: http://localhost:8080
+      
+      # Spring Profile
+      SPRING_PROFILES_ACTIVE: docker
+      
+      # Azure Services (disabled for local)
+      AZURE_APP_CONFIG_ENABLED: false
+      AZURE_KEYVAULT_ENABLED: false
+      AZURE_SERVICEBUS_ENABLED: false
+      KAFKA_ENABLED: false
+      
+      # Logging
+      LOG_LEVEL: INFO
+      
+      # Server Configuration
+      SERVER_PORT: 8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
