@@ -6,4 +6,5 @@ com.youtube.common.domain.events.outbox.DomainEventPublisherConfig
 com.youtube.common.domain.events.EventPublisher
 com.youtube.common.domain.services.tracing.TraceProvider
 com.youtube.common.domain.core.UnitOfWork
+com.youtube.common.domain.config.CommonDomainConfiguration
 

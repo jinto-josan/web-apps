@@ -27,6 +27,7 @@ public class DomainEventPublisherConfig {
      * brokers without changing OutboxDispatcher code.</p>
      */
     @Bean
+    @ConditionalOnProperty(name = "outbox.domain-event-publisher.enabled", havingValue = "true")
     @ConditionalOnProperty(name = "outbox.domain-event-publisher.backend.type", havingValue = "servicebus", matchIfMissing = true)
     public MessagePublisher serviceBusMessagePublisher(ServiceBusSenderClient serviceBusSender) {
         return new ServiceBusMessagePublisher(serviceBusSender);
@@ -41,6 +42,7 @@ public class DomainEventPublisherConfig {
      * - Both topics and queues</p>
      */
     @Bean
+    @ConditionalOnProperty(name = "outbox.domain-event-publisher.enabled", havingValue = "true")
     @ConditionalOnProperty(name = "outbox.domain-event-publisher.backend.type", havingValue = "servicebus", matchIfMissing = true)
     public ServiceBusSenderClient serviceBusSenderClient(DomainEventPublisherProperties props) {
         ServiceBusClientBuilder builder = new ServiceBusClientBuilder();
