@@ -1,0 +1,103 @@
+spring:
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+      hibernate.format_sql: true
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Ensure Flyway can create tables in public schema
+    # The database user needs CREATE privilege on public schema
+    # For PostgreSQL 15+, run db/init-grant-permissions.sql as superuser before starting
+    baseline-on-migrate: true
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    export:
+      azure-monitor:
+        enabled: true
+        # Connection string for Application Insights
+        # Can also be set via APPLICATIONINSIGHTS_CONNECTION_STRING environment variable
+        connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
+        # Sampling rate (0.0 to 1.0)
+        sampling:
+          percentage: ${APPLICATIONINSIGHTS_SAMPLING_PERCENTAGE:1.0}
+      prometheus:
+        enabled: true
+
+
+
+
+# SpringDoc OpenAPI Configuration
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    tryItOutEnabled: true
+
+
+
+#Azure configs
+#Azure app configuration
+azure:
+  appconfig:
+    enabled: true
+    endpoint: https://yt-common-config.azconfig.io
+    # Optional: Labels to filter configuration settings
+    # Supports multiple formats:
+    #   - YAML list: labels: [common, dev] or labels: - common - dev
+    #   - Comma-separated string: labels: "common,dev"
+    #   - Single label: labels: "dev"
+    # If not specified, loads all configuration settings regardless of label
+    labels: ${AZURE_APP_CONFIG_LABELS:local}
+
+# Application Insights Configuration
+applicationinsights:
+  # Connection string for Application Insights
+  # Can be set via environment variable APPLICATIONINSIGHTS_CONNECTION_STRING
+  connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
+  # Enable/disable Application Insights
+  enabled: ${APPLICATIONINSIGHTS_ENABLED:true}
+  # Sampling percentage (0.0 to 1.0)
+  sampling:
+    percentage: ${APPLICATIONINSIGHTS_SAMPLING_PERCENTAGE:1.0}
+  # Instrumentation key (legacy, connection string is preferred)
+  instrumentation-key: ${APPLICATIONINSIGHTS_INSTRUMENTATION_KEY:}
+
+
+# Domain Event Publisher Configuration (background service)
+outbox:
+  domain-event-publisher:
+    # Enable/disable the domain event publisher
+    enabled: ${OUTBOX_DOMAIN_EVENT_PUBLISHER_ENABLED:true}
+    # Polling interval in milliseconds
+    interval: ${OUTBOX_DOMAIN_EVENT_PUBLISHER_INTERVAL:5000}
+    # Backend configuration (Azure Service Bus)
+    backend:
+      connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING:}
+      fully-qualified-namespace: ${AZURE_SERVICEBUS_NAMESPACE:}
+      topic-name: ${AZURE_SERVICEBUS_TOPIC_NAME:}
+      queue-name: ${AZURE_SERVICEBUS_QUEUE_NAME:}
+      use-topic: ${AZURE_SERVICEBUS_USE_TOPIC:false}
+
+
+#Logging
+logging:
+  level:
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+    com.microsoft.applicationinsights: ${APPLICATIONINSIGHTS_LOG_LEVEL:INFO}
+    com.youtube.common.domain: INFO

@@ -214,6 +214,156 @@ See `com.youtube.common.domain.events.outbox.KafkaMessagePublisher` for a comple
 - Thread-local context storage
 - Multi-tenant support
 
+### 9. Azure App Configuration PropertySource Integration
+
+**Components:**
+- **AzureAppConfigurationPropertySourceLocator** - EnvironmentPostProcessor that loads properties from Azure App Configuration
+- **ConfigurationClient** - Azure App Configuration client bean (auto-configured)
+
+**Location:**
+- `com.youtube.common.domain.config.AzureAppConfigurationPropertySourceLocator`
+- `com.youtube.common.domain.config.CommonDomainConfiguration`
+
+**Features:**
+- Early property loading via EnvironmentPostProcessor (runs before beans are created)
+- Automatic property source registration in Spring Environment
+- Properties available for injection via `@Value` or `@ConfigurationProperties`
+- Key normalization (converts Azure App Config colon-separated keys to Spring dot-notation)
+- Label filtering support (load specific labels or all settings)
+- Multi-label support (comma-separated labels for environment-specific configurations)
+- Sensitive value masking in logs
+- Graceful error handling (doesn't fail startup if App Configuration is unavailable)
+- High priority property source (can override application.yml values)
+
+**Configuration:**
+```yaml
+azure:
+  appconfig:
+    enabled: true                              # Enable/disable property loading
+    connection-string: ${AZURE_APP_CONFIG_CONNECTION_STRING:}  # Optional: connection string
+    endpoint: ${AZURE_APP_CONFIG_ENDPOINT:}   # Optional: endpoint (uses managed identity)
+    labels: ${AZURE_APP_CONFIG_LABELS:}       # Optional: comma-separated labels (e.g., "dev,common" or "prod")
+```
+
+**Label Support:**
+Azure App Configuration supports labels to organize configuration settings by environment, region, or any other dimension. The PropertySourceLocator supports:
+
+- **No label specified**: Loads all configuration settings regardless of label
+- **Single label**: Loads only settings with the specified label
+- **Multiple labels**: Loads settings from multiple labels, with later labels overriding earlier ones if keys conflict
+
+**Label Format Support:**
+The labels configuration supports multiple formats for flexibility:
+
+1. **YAML List Format** (recommended for multiple labels):
+```yaml
+azure:
+  appconfig:
+    labels:
+      - common
+      - dev
+```
+
+2. **YAML Inline List**:
+```yaml
+azure:
+  appconfig:
+    labels: [common, dev]
+```
+
+3. **Comma-Separated String**:
+```yaml
+azure:
+  appconfig:
+    labels: "common,dev"
+```
+
+4. **Single Label**:
+```yaml
+azure:
+  appconfig:
+    labels: "dev"
+```
+
+**Label Examples:**
+```yaml
+# Load all settings (no label filter)
+azure:
+  appconfig:
+    enabled: true
+    endpoint: https://your-appconfig.azconfig.io
+    # labels not specified - loads all
+
+# Load only production settings (single label)
+azure:
+  appconfig:
+    enabled: true
+    endpoint: https://your-appconfig.azconfig.io
+    labels: "prod"
+
+# Load development settings, with common settings as fallback (YAML list format)
+# Common settings are loaded first, then dev settings override if keys conflict
+azure:
+  appconfig:
+    enabled: true
+    endpoint: https://your-appconfig.azconfig.io
+    labels:
+      - common
+      - dev
+
+# Same as above, using comma-separated string
+azure:
+  appconfig:
+    enabled: true
+    endpoint: https://your-appconfig.azconfig.io
+    labels: "common,dev"
+```
+
+**How Labels Are Read:**
+The implementation reads labels from the Spring Environment and automatically detects the format:
+- If configured as a YAML list (`labels: [dev, common]`), Spring Boot converts it to a `List` object
+- If configured as a string (`labels: "dev,common"`), it's parsed as a comma-separated string
+- The parser handles both formats seamlessly, so you can use whichever format is most convenient
+
+**Usage:**
+Properties loaded from Azure App Configuration are automatically available in the Spring Environment and can be used in:
+
+1. **application.yml** - Reference properties from App Configuration:
+```yaml
+spring:
+  datasource:
+    url: ${database.url}  # Loaded from Azure App Configuration
+    username: ${database.username}
+```
+
+2. **@Value annotation**:
+```java
+@Service
+public class DatabaseService {
+    @Value("${database.url}")
+    private String databaseUrl;
+}
+```
+
+3. **@ConfigurationProperties**:
+```java
+@ConfigurationProperties(prefix = "database")
+public class DatabaseProperties {
+    private String url;
+    private String username;
+    // getters/setters
+}
+```
+
+**Property Key Normalization:**
+Azure App Configuration uses colon-separated keys (e.g., `my-service:database:url`), which are automatically converted to Spring's dot-notation format (e.g., `my-service.database.url`) for compatibility.
+
+**Registration:**
+The PropertySourceLocator is automatically registered via `META-INF/spring.factories`:
+```
+org.springframework.boot.env.EnvironmentPostProcessor=com.youtube.common.domain.config.AzureAppConfigurationPropertySourceLocator
+```
+
 
 ## Configuration
 
@@ -240,6 +390,10 @@ Common-domain uses Spring Boot auto-configuration for web components:
 - `outbox.domain-event-publisher.backend.topic-name` - Topic name for publishing events
 - `outbox.domain-event-publisher.backend.queue-name` - Queue name (Service Bus only, optional)
 - `outbox.domain-event-publisher.backend.use-topic` - Use topic (true) or queue (false) for Service Bus (default: true)
+- `azure.appconfig.enabled` - Enable/disable Azure App Configuration property loading (default: false)
+- `azure.appconfig.connection-string` - Azure App Configuration connection string (optional, alternative to endpoint)
+- `azure.appconfig.endpoint` - Azure App Configuration endpoint URL (optional, uses managed identity if provided)
+- `azure.appconfig.labels` - Comma-separated list of labels to filter configuration settings (optional, loads all if not specified)
 
 ## Usage Examples
 
@@ -444,6 +598,14 @@ Services should:
 2. HTTP clients (RestTemplate/WebClient) automatically propagate correlation IDs
 3. Ensure `TraceProvider` bean exists (auto-configured if Micrometer Tracing is present)
 
+**For Azure App Configuration:**
+1. Set `azure.appconfig.enabled=true` in application.yml or environment variable
+2. Configure either `azure.appconfig.connection-string` or `azure.appconfig.endpoint`
+3. Optionally specify `azure.appconfig.labels` to filter by label(s) (e.g., "dev", "prod", "dev,common")
+4. Properties from Azure App Configuration are automatically loaded and available for injection
+5. Use properties in application.yml with `${property.key}` syntax or inject via `@Value` or `@ConfigurationProperties`
+6. When multiple labels are specified, later labels override earlier ones if keys conflict
+
 **General Setup:**
 1. Extend entity classes (OutboxEvent, InboxMessage, HttpIdempotency)
 2. Implement repository interfaces
@@ -489,6 +651,8 @@ com.youtube.common.domain/
 │   └── Hashing            # Cryptographic hashing utilities
 ├── repository/             # Repository interfaces (ports)
 └── config/                 # Configuration
+    ├── CommonDomainConfiguration              # Main configuration class
+    └── AzureAppConfigurationPropertySourceLocator  # App Config property loader
 ```
 
 ## Error Handling

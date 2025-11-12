@@ -37,7 +37,7 @@ import java.util.List;
  *    }
  *    }</pre>
  * 
- * 3. Configure in application.yml:
+ * 3. Configure in application-common.yml:
  *    <pre>{@code
  *    outbox:
  *      dispatcher:

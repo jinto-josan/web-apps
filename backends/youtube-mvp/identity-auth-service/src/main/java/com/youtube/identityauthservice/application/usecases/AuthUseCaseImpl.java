@@ -59,7 +59,7 @@ public class AuthUseCaseImpl implements AuthUseCase {
             IdGenerator<UserId> userIdGenerator,
             Clock clock,
             UnitOfWork unitOfWork,
-            @Value("${app.access-token-ttl-seconds}") int accessTtl) {
+            @Value("${identity-auth.access-token-ttl-seconds}") int accessTtl) {
         this.verifier = verifier;
         this.userRepository = userRepository;
         this.userRepositoryImpl = userRepositoryImpl;

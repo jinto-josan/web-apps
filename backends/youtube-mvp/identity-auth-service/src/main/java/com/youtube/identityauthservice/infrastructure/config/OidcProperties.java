@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
 
-@ConfigurationProperties(prefix = "app.oidc")
+@ConfigurationProperties(prefix = "identity-auth.oidc")
 public class OidcProperties {
 
     public static class Provider {

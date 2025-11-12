@@ -1,3 +1,5 @@
+server:
+  port: 8080
 spring:
   config:
     activate:
@@ -7,94 +9,16 @@ spring:
     username: identity_user
     password: identity_user
 
-  redis:
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
-
-  jpa:
-    show-sql: false
-    properties:
-      hibernate:
-        format_sql: false
-
-app:
-  issuer: http://localhost:8080
-  audience: api://5b3ef65b-9c29-47a9-8d5b-f2032ee3e8e7
-  access-token-ttl-seconds: 900
-  refresh-token-ttl-seconds: 2592000
-  device:
-    verification-uri: http://localhost:8080/device
-    user-code-length: 8
-    device-code-ttl-seconds: 900
-    poll-interval-seconds: 5
-  jwt:
-    signing:
-      mode: keyvault
-    compositePublicJwks: true
-    fallbackToLocal: true
-  keyvault:
-    vaultUri: https://youtube-eus-kv.vault.azure.net/
-    keyName: token-signing-key
-  localrsa:
-    kid: kid-local-1
-    privatePemPath: /etc/keys/access_pkcs8.pem
-    publicPemPath: /etc/keys/access_public.pem
-  oidc:
-    providers:
-      - issuer: https://sts.windows.net/29e37b86-b53e-4bc1-8bf5-90f4a05204b2/
-        discoveryUrl: https://login.microsoftonline.com/29e37b86-b53e-4bc1-8bf5-90f4a05204b2/v2.0/.well-known/openid-configuration
-        audiences:
-          - api://5b3ef65b-9c29-47a9-8d5b-f2032ee3e8e7
-
-#Azure app configuration
-azure:
-  appconfig:
-    enabled: true
-    endpoint: https://yt-common-config.azconfig.io
-
+springdoc:
+  packages-to-scan: com.youtube.identityauthservice.interfaces.rest
 
 # Domain Event Publisher Configuration (background service)
 outbox:
   domain-event-publisher:
-    # Enable/disable the domain event publisher
-    enabled: ${OUTBOX_DOMAIN_EVENT_PUBLISHER_ENABLED:true}
-    # Polling interval in milliseconds
-    interval: ${OUTBOX_DOMAIN_EVENT_PUBLISHER_INTERVAL:2000}
-    # Backend configuration (Azure Service Bus)
     backend:
-      # Connection string or managed identity can be used
-      # connection-string: Endpoint=sb://my-ns.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=...
-      fully-qualified-namespace: ${AZURE_SERVICEBUS_NAMESPACE:output-event.servicebus.windows.net}
-      use-topic: ${AZURE_SERVICEBUS_USE_TOPIC:true}
-      topic-name: ${AZURE_SERVICEBUS_TOPIC_NAME:identity-events}
+      fully-qualified-namespace: output-event.servicebus.windows.net
       queue-name: ${AZURE_SERVICEBUS_QUEUE_NAME:}
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,prometheus
-  metrics:
-    export:
-      azure-monitor:
-        enabled: true
-        connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
-        sampling:
-          percentage: ${APPLICATIONINSIGHTS_SAMPLING_PERCENTAGE:1.0}
-      prometheus:
-        enabled: true
-
-# Application Insights Configuration
-applicationinsights:
-  connection-string: ${APPLICATIONINSIGHTS_CONNECTION_STRING:}
-  enabled: ${APPLICATIONINSIGHTS_ENABLED:true}
-  sampling:
-    percentage: ${APPLICATIONINSIGHTS_SAMPLING_PERCENTAGE:1.0}
-  instrumentation-key: ${APPLICATIONINSIGHTS_INSTRUMENTATION_KEY:}
 
 logging:
   level:
     com.youtube.identityauthservice: ${LOG_LEVEL:INFO}
-    org.springframework.web: WARN
-    org.hibernate.SQL: WARN
-    com.microsoft.applicationinsights: ${APPLICATIONINSIGHTS_LOG_LEVEL:INFO}

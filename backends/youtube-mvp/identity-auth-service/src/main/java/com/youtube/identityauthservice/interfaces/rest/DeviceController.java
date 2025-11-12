@@ -33,10 +33,10 @@ public class DeviceController {
     private final SessionRefreshService sessionService;
     private final TokenService tokenService;
 
-    @Value("${app.device.verification-uri}")
+    @Value("${identity-auth.device.verification-uri}")
     private String verificationUri;
 
-    @Value("${app.access-token-ttl-seconds}")
+    @Value("${identity-auth.access-token-ttl-seconds}")
     private int accessTtl;
 
     public DeviceController(DeviceFlowService deviceFlow, OidcIdTokenVerifier verifier,

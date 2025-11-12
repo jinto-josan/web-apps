@@ -2,7 +2,7 @@ package com.youtube.identityauthservice.infrastructure.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "app.keyvault")
+@ConfigurationProperties(prefix = "identity-auth.keyvault")
 public class KeyVaultProperties {
     private String vaultUri;
     private String keyName;

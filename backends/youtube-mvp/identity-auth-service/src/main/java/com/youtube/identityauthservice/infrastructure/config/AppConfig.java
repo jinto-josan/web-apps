@@ -21,9 +21,9 @@ public class AppConfig {
 
     @Bean
     public TokenService tokenService(
-            @Value("${app.issuer}") String issuer,
-            @Value("${app.audience}") String audience,
-            @Value("${app.access-token-ttl-seconds}") int accessTtl,
+            @Value("${identity-auth.issuer}") String issuer,
+            @Value("${identity-auth.audience}") String audience,
+            @Value("${identity-auth.access-token-ttl-seconds}") int accessTtl,
             JwkProvider jwkProvider) {
         return new TokenService(jwkProvider,issuer, audience, accessTtl);
     }
@@ -33,16 +33,16 @@ public class AppConfig {
             com.youtube.identityauthservice.domain.repositories.SessionRepository sessionRepo,
             com.youtube.identityauthservice.domain.repositories.RefreshTokenRepository refreshRepo,
             com.youtube.identityauthservice.domain.services.EventPublisher eventPublisher,
-            @Value("${app.refresh-token-ttl-seconds}") int refreshTtl) {
+            @Value("${identity-auth.refresh-token-ttl-seconds}") int refreshTtl) {
         return new SessionRefreshService(sessionRepo, refreshRepo, eventPublisher, refreshTtl);
     }
 
     @Bean
     public DeviceFlowService deviceFlowService(
             StringRedisTemplate redis,
-            @Value("${app.device.user-code-length}") int userCodeLen,
-            @Value("${app.device.device-code-ttl-seconds}") long ttl,
-            @Value("${app.device.poll-interval-seconds}") long interval) {
+            @Value("${identity-auth.device.user-code-length}") int userCodeLen,
+            @Value("${identity-auth.device.device-code-ttl-seconds}") long ttl,
+            @Value("${identity-auth.device.poll-interval-seconds}") long interval) {
         return new DeviceFlowService(redis, userCodeLen, ttl, interval);
     }
 

@@ -2,7 +2,7 @@ package com.youtube.identityauthservice.infrastructure.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "app.jwt.signing")
+@ConfigurationProperties(prefix = "identity-auth.jwt.signing")
 public class SigningProperties {
     public enum Mode { KEYVAULT, LOCAL }
 
